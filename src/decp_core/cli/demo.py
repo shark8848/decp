@@ -14,6 +14,12 @@ import json
 
 async def _run(instruction: str, params: dict) -> None:
     from decp_core.agent import DigitalEmployee
+    from decp_core.config import settings
+    from decp_core.logging_setup import configure_logging
+
+    # 统一日志装配：demo 进程也要挂载滚动文件/SDK 远程上报 handler，
+    # 否则 service 层业务打点（feedback.created 等）会静默丢失。
+    configure_logging(module_name="decp", level=settings.log_level, settings=settings)
 
     agent = await DigitalEmployee.create()
     try:

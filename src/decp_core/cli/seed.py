@@ -48,7 +48,11 @@ _FEEDBACK_TEMPLATES: list[tuple[str, str, str, str, str]] = [
 
 async def seed(count: int | None = None, backend: str | None = None) -> None:
     from decp_core.config import settings
+    from decp_core.logging_setup import configure_logging
     from decp_core.storage import create_storage
+
+    # 统一日志装配：seed 写入的 feedback.bulk_created 打点也要落盘/上报。
+    configure_logging(module_name="decp", level=settings.log_level, settings=settings)
 
     if backend:
         settings.storage_backend = backend  # type: ignore[assignment]
