@@ -268,7 +268,7 @@ cp config/pypi.env.example config/pypi.env
 
 ## 发布到 npm
 
-DECP 同时以 **npm 包**分发（`npm/` 目录），让用户 `npm install decp-core` 即可拿到 skills 定义 + MCP server 启动器：
+DECP 同时以 **npm 包**分发（`npm/` 目录），让用户 `npm install @shark8848/decp-core` 即可拿到 skills 定义 + MCP server 启动器：
 
 ```bash
 # 登录 npm（需先有 npm 账号）
@@ -284,11 +284,11 @@ npm login
 用户安装后：
 
 ```bash
-npm install decp-core
+npm install @shark8848/decp-core
 npx decp-setup            # 一键准备 Python 环境（venv + decp-core）
 npx decp-mcp              # 启动 MCP server（stdio）
 npx decp-mcp --transport http --port 18100
-cp -r node_modules/decp-core/skills/* ~/.claude/skills/   # 加载技能到 Claude Code
+cp -r node_modules/@shark8848/decp-core/skills/* ~/.claude/skills/   # 加载技能到 Claude Code
 ```
 
 - 包内含 `skills/`（3 个 SKILL.md + manifest.json，Claude Code / AgentScope / deerflow 直接加载）、`decp-mcp` / `decp-setup`（Node 启动器）、`Dockerfile` + `docker-compose.yml`（容器部署）。

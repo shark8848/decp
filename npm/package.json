@@ -1,5 +1,5 @@
 {
-  "name": "decp-core",
+  "name": "@shark8848/decp-core",
   "version": "0.1.0",
   "description": "DECP · 联邦数字员工协作平台 — Product requirement collection & analysis skills + MCP server launcher",
   "keywords": [

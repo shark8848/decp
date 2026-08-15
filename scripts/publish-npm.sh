@@ -55,7 +55,7 @@ echo "登录用户: $NPM_USER"
 # Build (npm pack) + test
 # ---------------------------------------------------------------------------
 echo "========================================"
-echo " decp-core npm publish"
+echo " @shark8848/decp-core npm publish"
 echo " 目录:    $NPM_DIR"
 echo " 用户:    $NPM_USER"
 echo "========================================"
@@ -94,7 +94,7 @@ fi
 
 # --skip-existing 不是 npm publish 的标准 flag，先确认版本是否已存在
 VERSION="$(node -p "require('./package.json').version")"
-if npm view decp-core@"$VERSION" version >/dev/null 2>&1; then
+if npm view @shark8848/decp-core@"$VERSION" version >/dev/null 2>&1; then
     if [ "$SKIP_EXISTING" = true ]; then
         echo "版本 $VERSION 已存在于 npm，跳过（--skip-existing）。"
         exit 0
@@ -107,4 +107,4 @@ fi
 npm publish "${PUBLISH_ARGS[@]}"
 
 echo ""
-echo "✅ Published decp-core $VERSION to npm (user: $NPM_USER)"
+echo "✅ Published @shark8848/decp-core $VERSION to npm (user: $NPM_USER)"

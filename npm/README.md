@@ -2,7 +2,7 @@
 
 DECP（联邦数字员工协作平台）的 **skill 定义 + MCP server 启动器**。
 
-通过 `npm install decp-core` 即可获得：
+通过 `npm install @shark8848/decp-core` 即可获得：
 
 - `skills/` — 3 个技能定义（SKILL.md + manifest.json），可直接被 **Claude Code / AgentScope / deerflow** 加载
 - `decp-mcp` — 一行启动 DECP MCP server（Node 包装 Python，自动准备 venv）
@@ -12,7 +12,7 @@ DECP（联邦数字员工协作平台）的 **skill 定义 + MCP server 启动�
 ## 安装
 
 ```bash
-npm install decp-core
+npm install @shark8848/decp-core
 ```
 
 ## 快速开始
@@ -39,11 +39,11 @@ MCP server 提供 **13 个工具**：`feedback.*`（提交/查询）、`requirem
 
 ### 3. 加载技能
 
-技能定义位于 `node_modules/decp-core/skills/`，复制到你的 Agent Runtime：
+技能定义位于 `node_modules/@shark8848/decp-core/skills/`，复制到你的 Agent Runtime：
 
 **Claude Code：**
 ```bash
-cp -r node_modules/decp-core/skills/* ~/.claude/skills/
+cp -r node_modules/@shark8848/decp-core/skills/* ~/.claude/skills/
 ```
 
 **AgentScope / deerflow：** 使用各自的 SkillLoader 指向该目录（详见 [docs/agentscope-integration.md](https://github.com/shark8848/decp/blob/main/docs/agentscope-integration.md)）。
@@ -53,7 +53,7 @@ cp -r node_modules/decp-core/skills/* ~/.claude/skills/
 ## Docker 部署
 
 ```bash
-cd node_modules/decp-core
+cd node_modules/@shark8848/decp-core
 docker compose up -d --build decp-mcp        # SQLite 单机
 DECP_PG_PASSWORD=你的强密码 docker compose --profile postgres up -d --build   # PostgreSQL 生产形态
 ```
