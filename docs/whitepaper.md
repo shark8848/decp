@@ -54,12 +54,6 @@ DECP 按设计文档实现产品需求收集、整理与分析场景的**四层�
 └─────────────────────────────────────────────┘
 ```
 
-### 设计文档
-
-完整场景泳道图（业务人员 / 数字员工 / 数据访问 / 企业数据 四泳道，七步业务闭环）：
-
-![产品需求收集、整理与分析场景](product-requirement-analysis-scenario_Version2.svg)
-
 ## 4. 核心业务闭环（七步）
 
 ![核心业务闭环](product-requirement-analysis-scenario_Version2.svg)
@@ -125,6 +119,172 @@ DECP 以 Python 包与 npm 包双通道分发：
 | npm | `@shark8848/decp-core` | skills + MCP server 启动器（`npx decp-mcp`） |
 | Docker | `decp-core:latest` | 容器化部署（SQLite 单机 / PostgreSQL 生产形态） |
 
-## 7. 许可
+## 7. 与现有 Agent 快速集成
+
+DECP 通过 **标准 MCP 协议**（stdio / HTTP）暴露 13 个数据工具，并以 **SKILL.md** 技能定义描述业务流程，因此可被主流 Agent Runtime 低成本接入。核心集成模式只有两条：
+
+1. **注册 MCP server** → Agent 获得 `feedback.*` / `requirement.*` / `report.*` / `domain.*` 13 个工具；
+2. **挂载技能定义**（`skills/*/SKILL.md`）→ Agent 学会「收集反馈 → 分析 → 生成需求」的完整业务编排。
+
+> 技能通过 MCP 工具驱动数据操作，因此先注册 MCP server，再挂载技能（或反之，顺序无关紧要，两者独立）。
+
+### 7.1 启动 MCP server
+
+任选一种方式，保持进程运行即可：
+
+```bash
+# 本地（Python）
+python -m decp_core.mcp_.main                 # stdio
+python -m decp_core.mcp_.main --transport http --port 18100
+
+# 本地（npm，自动准备 venv）
+npx decp-setup
+npx decp-mcp                                  # stdio
+npx decp-mcp --transport http --port 18100
+
+# Docker
+docker run --rm -i -v decp-data:/app/data decp-core:latest                                  # stdio
+docker run --rm -d -p 18100:18100 -e DECP_MCP_TRANSPORT=http decp-core:latest                # http
+```
+
+### 7.2 AgentScope
+
+AgentScope（阿里开源 Agent 框架）通过 `LocalSkillLoader` 加载 DECP 技能、`MCPClient` 连接 MCP server：
+
+```python
+from agentscope.mcp import MCPClient, StdioMCPConfig
+from agentscope.skill import LocalSkillLoader
+
+# 1) 加载技能定义
+loader = LocalSkillLoader("/home/decp/skills")
+skills = loader.list_skills()          # feedback-collect / requirement-analysis / requirement-query
+
+# 2) 连接 MCP server（stdio）
+client = MCPClient(mcp_config=StdioMCPConfig(
+    command="/home/decp/.venv/bin/python",
+    args=["-m", "decp_core.mcp_.main"],
+))
+await client.connect()
+tool = client.get_tool("feedback.submit")
+result = await tool.call(content="客户 A 导入超过 5000 条订单时失败", customer="Customer A")
+await client.close()
+```
+
+HTTP 同理：`HttpMCPConfig(url="http://localhost:18100/mcp", is_stateful=True)`。
+
+> 详细验证见 [agentscope-integration.md](agentscope-integration.md)（已实测 13 工具、数据落库）。
+
+### 7.3 deerflow
+
+deerflow（企业级 Agent 编排平台）将 DECP 注册为 **MCP agent exposure**（带 `mcp_token` 鉴权），技能按 workspace 目录加载：
+
+```yaml
+# deerflow config/config.yaml
+agent_exposures:
+  - name: decp-mcp
+    agent_name: decp-product-analysis
+    description: DECP 产品需求收集、整理与分析
+    enabled: true
+    require_token: true
+    mcp_token: <你的 token>
+```
+
+技能：将 DECP `skills/` 目录部署到 deerflow 的 workspace custom skills 目录：
+
+```bash
+# deerflow skills 目录约定
+skills/tenants/{tenant}/workspaces/{workspace}/custom/
+  feedback-collect/       # 复制自 DECP skills/
+  requirement-analysis/
+  requirement-query/
+```
+
+deerflow 的 skill_selector 会扫描该目录，将 SKILL.md 注入 agent 上下文。
+
+### 7.4 Claude Code
+
+Claude Code 通过 `.mcp.json` 注册 MCP server，技能放入 `~/.claude/skills/`：
+
+```bash
+# 1) 注册 MCP server
+claude mcp add decp -- python -m decp_core.mcp_.main
+#   或编辑项目 .mcp.json：
+#   {"mcpServers": {"decp": {"command": "npx", "args": ["decp-mcp"], "type": "stdio"}}}
+
+# 2) 安装技能（npm 包自带）
+cp -r node_modules/@shark8848/decp-core/skills/* ~/.claude/skills/
+```
+
+验证：`claude mcp list` 应看到 decp（13 工具）；在对话中让 Claude 触发技能，如「收集反馈并分析，生成需求草稿」。
+
+### 7.5 Codex
+
+Codex（OpenAI CLI）通过 `config.toml` 的 `[mcp_servers]` 注册：
+
+```toml
+# ~/.codex/config.toml
+[mcp_servers.decp]
+command = "npx"
+args = ["decp-mcp"]
+# 或本地 Python：
+# command = "/home/decp/.venv/bin/python"
+# args = ["-m", "decp_core.mcp_.main"]
+```
+
+或命令行：`codex mcp add decp -- npx decp-mcp`。重启 Codex 后工具即注入对话上下文。
+
+> 技能定义：Codex 支持 AGENTS.md 描述约定，可将 DECP 技能要点写入项目 `AGENTS.md` 供其引用。
+
+### 7.6 WorkBuddy / 其他 MCP 客户端
+
+WorkBuddy 等基于 MCP 生态的 Agent（含各类 MCP 客户端）统一走标准注册：
+
+```json
+{
+  "mcpServers": {
+    "decp": {
+      "command": "npx",
+      "args": ["decp-mcp"],
+      "type": "stdio"
+    }
+  }
+}
+```
+
+远程 HTTP 形态：
+
+```json
+{
+  "mcpServers": {
+    "decp": {
+      "url": "http://localhost:18100/mcp",
+      "type": "http"
+    }
+  }
+}
+```
+
+### 7.7 集成速查表
+
+| Runtime | MCP 注册 | 技能挂载 | 说明 |
+| --- | --- | --- | --- |
+| **AgentScope** | `MCPClient`（stdio/http） | `LocalSkillLoader("/home/decp/skills")` | 已实测 13 工具 + 落库 |
+| **deerflow** | `agent_exposures` + `mcp_token` | workspace `custom/` 目录 | 企业级鉴权 |
+| **Claude Code** | `claude mcp add decp` / `.mcp.json` | `~/.claude/skills/` | npm 包自带 skills |
+| **Codex** | `[mcp_servers.decp]` / `codex mcp add` | `AGENTS.md` 描述 | OpenAI CLI |
+| **WorkBuddy** | `.mcp.json`（stdio/http） | 同 Claude Code | MCP 标准注册 |
+
+### 7.8 验证集成
+
+任何 Runtime 接入后，用同一套冒烟命令验证：
+
+```json
+{"method":"initialize","params":{}}                          // 握手
+{"method":"tools/list","params":{}}                          // 应返回 13 个工具
+{"method":"tools/call","params":{"name":"domain.stats"}}     // 数据域统计
+{"method":"tools/call","params":{"name":"feedback.submit","arguments":{"content":"集成测试，导入超时","customer":"集成验证"}}}
+```
+
+## 8. 许可
 
 MIT License · © 2026 shark8848 &lt;admin@sharky-ai.com&gt;
