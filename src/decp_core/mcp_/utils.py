@@ -1,3 +1,5 @@
+# Copyright (c) 2026 shark8848 <admin@sharky-ai.com>
+# SPDX-License-Identifier: MIT
 """MCP 工具统一响应构造：结构化内容 + 文本摘要。
 
 工具函数直接返回 mcp.types.CallToolResult 实例——

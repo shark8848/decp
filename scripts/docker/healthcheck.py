@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 shark8848 <admin@sharky-ai.com>
+# SPDX-License-Identifier: MIT
 """DECP 容器健康检查脚本。
 
 用法:

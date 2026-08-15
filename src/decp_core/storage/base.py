@@ -1,3 +1,5 @@
+# Copyright (c) 2026 shark8848 <admin@sharky-ai.com>
+# SPDX-License-Identifier: MIT
 """存储抽象层：定义存储后端须实现的最小契约。
 
 实现：

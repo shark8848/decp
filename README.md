@@ -240,26 +240,6 @@ pytest
 python -c "from decp_core.agent.skill_catalog import SkillCatalog; s=SkillCatalog('skills').scan(); [print(x.name, x.version, len(x.tools)) for x in s]"
 ```
 
-## 目录结构
-
-```
-src/decp_core/
-  config/        # 配置（环境变量 + .env，前缀 DECP_）
-  models/        # 领域模型：Feedback / Requirement / AnalysisResult / SourceRef
-  storage/       # 存储抽象 + SQLite / PostgreSQL 双后端
-  services/      # 企业数据层业务逻辑
-  report/        # HTML / Excel 报告导出
-  mcp_/          # MCP server：工具注册、入口（stdio / http）
-  agent/         # 数字员工：Skill 基类、技能实现、SkillCatalog、注册表、意图路由
-  cli/           # seed / demo 命令行
-skills/          # 技能定义（SKILL.md + manifest.json），多运行时兼容
-scripts/docker/  # 容器入口脚本 + 健康检查
-Dockerfile       # 多阶段镜像（非 root）
-docker-compose.yml
-docs/            # 设计文档（场景 SVG）+ 运行时对接指南 + Docker 部署
-tests/           # 存储 / 服务 / MCP 工具 / Skill 层测试
-```
-
 ## 技能与运行时对接
 
 外部 Agent Runtime（AgentScope、deerflow、Claude Code 等）通过标准 **MCP 协议**调用 DECP 数据能力，技能流程定义在 `skills/*/SKILL.md`：

@@ -1,3 +1,5 @@
+# Copyright (c) 2026 shark8848 <admin@sharky-ai.com>
+# SPDX-License-Identifier: MIT
 """领域模型：feedback（反馈）与 requirement（需求）两大数据域。"""
 from __future__ import annotations
 

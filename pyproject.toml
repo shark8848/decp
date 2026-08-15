@@ -6,7 +6,20 @@ build-backend = "setuptools.build_meta"
 name = "decp-core"
 version = "0.1.0"
 description = "DECP · 联邦数字员工协作平台 —— 产品需求收集、整理与分析（数据层 + MCP 工具层 + 数字员工 Skill 层）"
+readme = "README.md"
 requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "shark8848", email = "admin@sharky-ai.com" }]
+keywords = ["decp", "mcp", "feedback", "requirement", "product-analysis", "agent"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
 dependencies = [
   "mcp>=2.0,<3.0",
   "pydantic>=2.6,<3.0",

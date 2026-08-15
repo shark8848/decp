@@ -1,3 +1,5 @@
+# Copyright (c) 2026 shark8848 <admin@sharky-ai.com>
+# SPDX-License-Identifier: MIT
 """MCP server 入口：装配存储、注册工具、启动传输。
 
 用法：

@@ -13,6 +13,9 @@ venv/
 # 配置（含数据库凭据）
 .env
 
+# PyPI 发布凭据（含 token，永不提交）
+config/pypi.env
+
 # 数据产物
 data/decp.db
 data/decp.db-wal

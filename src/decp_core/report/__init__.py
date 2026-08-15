@@ -1,3 +1,5 @@
+# Copyright (c) 2026 shark8848 <admin@sharky-ai.com>
+# SPDX-License-Identifier: MIT
 """报告导出：HTML 报告 + Excel 报表。
 
 面向产品经理 / 需求收集人员：在数字员工 agent 中通过自然语言指令查看、下载结果。

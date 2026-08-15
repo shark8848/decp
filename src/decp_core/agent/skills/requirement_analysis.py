@@ -1,3 +1,5 @@
+# Copyright (c) 2026 shark8848 <admin@sharky-ai.com>
+# SPDX-License-Identifier: MIT
 """需求收集-整理-分析技能（编排验证）。
 
 与 skills/requirement-analysis/SKILL.md 对应：

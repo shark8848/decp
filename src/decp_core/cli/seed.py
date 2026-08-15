@@ -1,3 +1,5 @@
+# Copyright (c) 2026 shark8848 <admin@sharky-ai.com>
+# SPDX-License-Identifier: MIT
 """种子数据脚本：生成一批贴近真实场景的客户反馈并入库。
 
 用法：

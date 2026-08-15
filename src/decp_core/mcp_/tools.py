@@ -1,3 +1,5 @@
+# Copyright (c) 2026 shark8848 <admin@sharky-ai.com>
+# SPDX-License-Identifier: MIT
 """MCP 工具注册：企业数据层 Service 封装为 MCP tools。
 
 按设计文档，工具分为：

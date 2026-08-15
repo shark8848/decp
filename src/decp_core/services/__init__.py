@@ -1,3 +1,5 @@
+# Copyright (c) 2026 shark8848 <admin@sharky-ai.com>
+# SPDX-License-Identifier: MIT
 """企业数据层服务（product workspace 数据域）。
 
 Service 封装数据域的业务逻辑，供 MCP 路由层调用并封装为 tools：

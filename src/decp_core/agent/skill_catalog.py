@@ -1,3 +1,5 @@
+# Copyright (c) 2026 shark8848 <admin@sharky-ai.com>
+# SPDX-License-Identifier: MIT
 """SKILL.md 加载器：从 skills/ 目录读取数字员工技能定义。
 
 DECP 的技能定义遵循外部 Agent Runtime（deerflow）的规范：

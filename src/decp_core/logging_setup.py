@@ -1,3 +1,5 @@
+# Copyright (c) 2026 shark8848 <admin@sharky-ai.com>
+# SPDX-License-Identifier: MIT
 """DECP 统一日志装配（集成 ikc-log-center SDK）。
 
 核心 Logger 由 `get_decp_logger(name)` 获取，业务模块不再直接使用

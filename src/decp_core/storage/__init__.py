@@ -1,3 +1,5 @@
+# Copyright (c) 2026 shark8848 <admin@sharky-ai.com>
+# SPDX-License-Identifier: MIT
 """存储后端工厂：按配置创建 ORM（SQLite / PostgreSQL）实例。
 
 单一 ORM 实现（SQLAlchemy 2.0 async），通过 engine URL 切换后端方言。

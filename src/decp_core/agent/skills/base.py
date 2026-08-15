@@ -1,3 +1,5 @@
+# Copyright (c) 2026 shark8848 <admin@sharky-ai.com>
+# SPDX-License-Identifier: MIT
 """Skill 基类：数字员工能力单元。
 
 Skill 只依赖 ToolBackend 接口，不感知存储/MCP server 细节；

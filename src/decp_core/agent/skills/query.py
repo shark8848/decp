@@ -1,3 +1,5 @@
+# Copyright (c) 2026 shark8848 <admin@sharky-ai.com>
+# SPDX-License-Identifier: MIT
 """查询技能（编排验证）。
 
 与 skills/requirement-query/SKILL.md 对应：

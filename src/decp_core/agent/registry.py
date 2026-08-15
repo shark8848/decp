@@ -1,3 +1,5 @@
+# Copyright (c) 2026 shark8848 <admin@sharky-ai.com>
+# SPDX-License-Identifier: MIT
 """Skill 注册表：管理数字员工拥有的全部技能。"""
 from __future__ import annotations
 

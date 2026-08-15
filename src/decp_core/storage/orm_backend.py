@@ -1,3 +1,5 @@
+# Copyright (c) 2026 shark8848 <admin@sharky-ai.com>
+# SPDX-License-Identifier: MIT
 """统一 ORM 存储后端：SQLAlchemy 2.0 async 实现，SQLite / PostgreSQL 共用。
 
 通过 engine URL 切换方言（`sqlite+aiosqlite://` 或 `postgresql+psycopg://`），

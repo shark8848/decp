@@ -1,3 +1,5 @@
+# Copyright (c) 2026 shark8848 <admin@sharky-ai.com>
+# SPDX-License-Identifier: MIT
 """数字员工 Agent：面向自然语言指令的技能调度入口。
 
 产品经理 / 需求收集人员通过自然语言指令与数字员工交互：

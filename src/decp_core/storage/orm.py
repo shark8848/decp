@@ -1,3 +1,5 @@
+# Copyright (c) 2026 shark8848 <admin@sharky-ai.com>
+# SPDX-License-Identifier: MIT
 """SQLAlchemy 2.0 ORM 模型定义（SQLite / PostgreSQL 双后端共用）。
 
 - 单一模型定义，通过 engine URL 切换方言（sqlite+aiosqlite:// 或 postgresql+psycopg://）

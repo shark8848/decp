@@ -1,4 +1,6 @@
 # syntax=docker/dockerfile:1
+# Copyright (c) 2026 shark8848 <admin@sharky-ai.com>
+# SPDX-License-Identifier: MIT
 
 # =============================================================================
 # DECP · 联邦数字员工协作平台 — 容器镜像

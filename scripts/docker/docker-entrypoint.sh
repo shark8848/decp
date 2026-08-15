@@ -1,4 +1,6 @@
 #!/bin/sh
+# Copyright (c) 2026 shark8848 <admin@sharky-ai.com>
+# SPDX-License-Identifier: MIT
 # =============================================================================
 # DECP 容器入口：默认启动 MCP server；传入命令时透传执行（如 seed/demo/交互）
 #

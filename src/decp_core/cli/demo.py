@@ -1,3 +1,5 @@
+# Copyright (c) 2026 shark8848 <admin@sharky-ai.com>
+# SPDX-License-Identifier: MIT
 """演示 CLI：通过数字员工自然语言指令体验完整闭环。
 
 用法：

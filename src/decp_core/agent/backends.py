@@ -1,3 +1,5 @@
+# Copyright (c) 2026 shark8848 <admin@sharky-ai.com>
+# SPDX-License-Identifier: MIT
 """数字员工 Skill 层的工具调用双模式后端。
 
 - direct: 进程内直调 MCP 已注册的 tool 函数（同一服务进程，测试/演示/单进程部署）

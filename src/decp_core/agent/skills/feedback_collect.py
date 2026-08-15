@@ -1,3 +1,5 @@
+# Copyright (c) 2026 shark8848 <admin@sharky-ai.com>
+# SPDX-License-Identifier: MIT
 """客户反馈收集技能（编排验证）。
 
 与 skills/feedback-collect/SKILL.md 对应：
