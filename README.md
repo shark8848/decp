@@ -64,6 +64,8 @@ decp-demo --instruction "生成报告"
 
 ## 架构
 
+设计背景、场景泳道图与七步闭环详见 [白皮书](docs/whitepaper.md) 与 [场景设计图](docs/product-requirement-analysis-scenario_Version2.svg)。
+
 ### 分层
 
 | 层 | 模块 | 说明 |
