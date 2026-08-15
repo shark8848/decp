@@ -1,0 +1,36 @@
+---
+name: requirement-query
+version: 0.1.0
+description: 需求与反馈查询技能。当用户要求查看、查询、搜索客户反馈或需求清单，查看需求状态/优先级/详情，或查找相似反馈时使用本技能。技能通过 DECP 平台的 MCP 工具读取 feedback / requirement 数据域。
+---
+
+# 需求与反馈查询技能
+
+本技能面向产品经理与需求收集人员，提供对 DECP 数据域的只读查询能力。不写入任何数据。
+
+## 数据域与工具
+
+| 工具 | 入参要点 | 返回内容 |
+|------|---------|---------|
+| `feedback.search` | `customer`、`module`、`limit`、`offset` | 反馈列表（最小必要字段） |
+| `feedback.get` | `feedback_id` | 单条反馈完整信息 |
+| `requirement.search` | `status`、`priority`、`module`、`limit`、`offset` | 需求列表 |
+| `requirement.get` | `requirement_id` | 需求完整信息（含来源引用、审核记录） |
+| `requirement.find_similar` | `text`、`limit` | 与给定文本相似的历史反馈（查重） |
+| `domain.stats` | — | 数据域统计（feedback/requirement 数量） |
+
+## 使用方式
+
+按用户意图选择查询目标：
+
+- **查反馈**：「最近的反馈」「某客户/某模块的反馈」→ `feedback.search`（带过滤参数）。
+- **查需求**：「需求清单」「某状态/优先级的需求」→ `requirement.search`（带过滤参数）。
+- **查详情**：「REQ-xxx 这个需求怎么样了」→ `requirement.get`。
+- **查重**：「这条反馈是不是重复了」→ `requirement.find_similar`（传入待查文本）。
+- **概览**：「数据域有多少数据」→ `domain.stats`。
+
+## 行为约束
+
+- **只读**：本技能不调用任何写入类工具（`feedback.submit` / `requirement.*` 写操作不在本技能范围）。
+- **最小必要数据**：优先按 `customer`/`module`/`status`/`priority` 过滤，`limit` 默认 50，避免拉全量。
+- **查询结果需转述**：将工具返回的结构化结果整理为可读信息向用户汇报，不直接堆原始 JSON。

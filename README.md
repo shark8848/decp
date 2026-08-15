@@ -266,6 +266,34 @@ cp config/pypi.env.example config/pypi.env
 - 包名 `decp-core`，作者 shark8848，MIT License（LICENSE 文件随 sdist/wheel 打包）。
 - 依赖声明完整：`mcp` / `pydantic` / `sqlalchemy` / `psycopg[binary]` / `jinja2` / `openpyxl` 等；可选 `[logging]`（ikc-log-center 远程上报）、`[dev]`（测试）。
 
+## 发布到 npm
+
+DECP 同时以 **npm 包**分发（`npm/` 目录），让用户 `npm install decp-core` 即可拿到 skills 定义 + MCP server 启动器：
+
+```bash
+# 登录 npm（需先有 npm 账号）
+npm login
+
+# 构建 + 冒烟测试 + 发布
+./scripts/publish-npm.sh
+
+# 仅打包验证（不发布）
+./scripts/publish-npm.sh --dry-run
+```
+
+用户安装后：
+
+```bash
+npm install decp-core
+npx decp-setup            # 一键准备 Python 环境（venv + decp-core）
+npx decp-mcp              # 启动 MCP server（stdio）
+npx decp-mcp --transport http --port 18100
+cp -r node_modules/decp-core/skills/* ~/.claude/skills/   # 加载技能到 Claude Code
+```
+
+- 包内含 `skills/`（3 个 SKILL.md + manifest.json，Claude Code / AgentScope / deerflow 直接加载）、`decp-mcp` / `decp-setup`（Node 启动器）、`Dockerfile` + `docker-compose.yml`（容器部署）。
+- Node 启动器自动检测 python3 ≥ 3.12 → 创建 `~/.decp/venv` → pip 安装 decp-core；stdio 模式 stdin/stdout 透传（MCP 协议纯净），http 模式监听 18100。
+
 ## 技能与运行时对接
 
 外部 Agent Runtime（AgentScope、deerflow、Claude Code 等）通过标准 **MCP 协议**调用 DECP 数据能力，技能流程定义在 `skills/*/SKILL.md`：

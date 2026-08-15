@@ -1,0 +1,47 @@
+{
+  "name": "decp-core",
+  "version": "0.1.0",
+  "description": "DECP · 联邦数字员工协作平台 — Product requirement collection & analysis skills + MCP server launcher",
+  "keywords": [
+    "decp",
+    "mcp",
+    "model-context-protocol",
+    "skills",
+    "claude",
+    "agent",
+    "feedback",
+    "requirement",
+    "product-analysis"
+  ],
+  "license": "MIT",
+  "author": "shark8848 <admin@sharky-ai.com>",
+  "homepage": "https://github.com/shark8848/decp",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shark8848/decp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/shark8848/decp/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "bin/",
+    "skills/",
+    "Dockerfile",
+    "docker-compose.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "bin": {
+    "decp-mcp": "bin/decp-mcp.js",
+    "decp-setup": "bin/decp-setup.js"
+  },
+  "scripts": {
+    "start": "node bin/decp-mcp.js",
+    "setup": "node bin/decp-setup.js",
+    "test": "node --test bin/tests/*.test.js",
+    "prepublishOnly": "node bin/decp-setup.js --check"
+  }
+}
