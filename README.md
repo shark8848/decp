@@ -4,26 +4,9 @@ Federated Digital Employee Collaboration Platform
 
 > 将分散的客户反馈转换为 **结构化、去重、可追溯、可审核** 的产品需求，同时保留**人工决策权**与**企业数据主权**。
 
-核心业务闭环：`反馈 → 分析 → 审核 → 入库`
-
-权威设计输入：[docs/product-requirement-analysis-scenario_Version2.svg](docs/product-requirement-analysis-scenario_Version2.svg)
-
-## 当前实现范围
-
-按设计文档实现 **产品需求收集、整理与分析** 场景的前三层：
-
-```
-业务人员  → 产品经理 / 维护人员（通过自然语言指令与数字员工交互）
-数字员工  → decp_core.agent（Skill 层：需求分析 / 查询）
-数据访问  → decp_core.mcp_（MCP 工具层，Gateway 语义）
-企业数据  → decp_core.storage（product workspace：feedback / requirement 双数据域）
-```
-
-**三层均为可实现代码**；存储支持 SQLite（默认，开发）与 PostgreSQL（生产形态）。
-
 ## 安装
 
-两种安装方式，按你的技术栈选择：
+三种安装方式，按你的技术栈选择：
 
 **Python（数据层 / 业务集成）：**
 
@@ -47,6 +30,25 @@ cp -r node_modules/@shark8848/decp-core/skills/* ~/.claude/skills/   # 加载技
 ```
 
 npm 包内含 `skills/`（3 个 SKILL.md + manifest.json，Claude Code / AgentScope / deerflow 直接加载）、`decp-mcp` / `decp-setup`（Node 启动器）、`Dockerfile` + `docker-compose.yml`（容器部署）。Node 启动器自动检测 python3 ≥ 3.12 → 创建 `~/.decp/venv` → pip 安装 decp-core；stdio 模式 stdin/stdout 透传（MCP 协议纯净），http 模式监听 18100。
+
+**Docker（容器化部署，SQLite 单机 / PostgreSQL 生产形态）：**
+
+```bash
+# 从源码构建镜像
+docker build -t decp-core:latest .
+
+# stdio 模式（MCP 客户端注入 stdin/stdout，如 Claude Code / AgentScope）
+docker run --rm -i -v decp-data:/app/data decp-core:latest
+
+# streamable http 模式（默认 18100）
+docker run --rm -d -p 18100:18100 -e DECP_MCP_TRANSPORT=http decp-core:latest
+
+# docker compose 编排（含 PostgreSQL 生产形态）
+docker compose up -d --build decp-mcp
+DECP_PG_PASSWORD=你的强密码 docker compose --profile postgres up -d --build
+```
+
+完整部署说明见 [Docker 部署](#docker-部署)。
 
 ## 快速开始
 
