@@ -21,13 +21,20 @@ Federated Digital Employee Collaboration Platform
 
 **三层均为可实现代码**；存储支持 SQLite（默认，开发）与 PostgreSQL（生产形态）。
 
+## 安装
+
+```bash
+# PyPI 安装（发布后可用）
+pip install decp-core
+
+# 开发模式安装（含测试依赖）
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+```
+
 ## 快速开始
 
 ```bash
-# 安装
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
-
 # 写入种子反馈数据（12 条贴近真实场景）
 python -m decp_core.cli.seed
 
@@ -239,6 +246,25 @@ pytest
 # 校验 skills/ 目录技能定义及其 MCP 工具依赖
 python -c "from decp_core.agent.skill_catalog import SkillCatalog; s=SkillCatalog('skills').scan(); [print(x.name, x.version, len(x.tools)) for x in s]"
 ```
+
+## 发布到 PyPI
+
+```bash
+# 准备发布凭据（复制模板并填入 PyPI token，config/pypi.env 已 gitignore）
+cp config/pypi.env.example config/pypi.env
+
+# 构建 + 上传
+./scripts/publish-pypi.sh
+
+# 先上传 TestPyPI 验证
+./scripts/publish-pypi.sh --test
+
+# 复用现有 dist/（跳过重新构建）
+./scripts/publish-pypi.sh --skip-build
+```
+
+- 包名 `decp-core`，作者 shark8848，MIT License（LICENSE 文件随 sdist/wheel 打包）。
+- 依赖声明完整：`mcp` / `pydantic` / `sqlalchemy` / `psycopg[binary]` / `jinja2` / `openpyxl` 等；可选 `[logging]`（ikc-log-center 远程上报）、`[dev]`（测试）。
 
 ## 技能与运行时对接
 
