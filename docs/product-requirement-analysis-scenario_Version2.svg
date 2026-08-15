@@ -1,0 +1,885 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+    width="1600"
+    height="1425"
+    viewBox="0 0 1600 1425"
+     role="img"
+     aria-labelledby="title description">
+
+  <title id="title">DECP 产品需求收集、整理与分析场景示意图</title>
+  <desc id="description">
+    展示维护人员提交客户反馈后，产品数字员工通过企业 Workspace Gateway
+    查询工单、历史需求和产品资料，完成结构化、去重、聚类、影响分析和优先级建议，
+    再由产品经理审核并写入产品 Workspace 的完整业务流程。
+  </desc>
+
+  <defs>
+    <!-- Background -->
+    <linearGradient id="pageBackground" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F8FAFC"/>
+      <stop offset="100%" stop-color="#EEF2F7"/>
+    </linearGradient>
+
+    <!-- Header -->
+    <linearGradient id="headerGradient" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#172554"/>
+      <stop offset="55%" stop-color="#1E3A8A"/>
+      <stop offset="100%" stop-color="#3730A3"/>
+    </linearGradient>
+
+    <!-- Module colors -->
+    <linearGradient id="humanGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#EFF6FF"/>
+      <stop offset="100%" stop-color="#DBEAFE"/>
+    </linearGradient>
+
+    <linearGradient id="agentGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#F5F3FF"/>
+      <stop offset="100%" stop-color="#EDE9FE"/>
+    </linearGradient>
+
+    <linearGradient id="gatewayGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ECFDF5"/>
+      <stop offset="100%" stop-color="#D1FAE5"/>
+    </linearGradient>
+
+    <linearGradient id="dataGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FFFBEB"/>
+      <stop offset="100%" stop-color="#FEF3C7"/>
+    </linearGradient>
+
+    <linearGradient id="reviewGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FFF7ED"/>
+      <stop offset="100%" stop-color="#FFEDD5"/>
+    </linearGradient>
+
+    <linearGradient id="successGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#F0FDF4"/>
+      <stop offset="100%" stop-color="#DCFCE7"/>
+    </linearGradient>
+
+    <linearGradient id="governanceGradient" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#0F172A"/>
+      <stop offset="100%" stop-color="#334155"/>
+    </linearGradient>
+
+    <!-- Shadows -->
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="5" stdDeviation="7"
+                    flood-color="#0F172A" flood-opacity="0.12"/>
+    </filter>
+
+    <filter id="smallShadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3"
+                    flood-color="#0F172A" flood-opacity="0.10"/>
+    </filter>
+
+    <!-- Arrow markers -->
+    <marker id="arrowBlue"
+            markerWidth="10"
+            markerHeight="10"
+            refX="8"
+            refY="5"
+            orient="auto"
+            markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#2563EB"/>
+    </marker>
+
+    <marker id="arrowPurple"
+            markerWidth="10"
+            markerHeight="10"
+            refX="8"
+            refY="5"
+            orient="auto"
+            markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#7C3AED"/>
+    </marker>
+
+    <marker id="arrowGreen"
+            markerWidth="10"
+            markerHeight="10"
+            refX="8"
+            refY="5"
+            orient="auto"
+            markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#059669"/>
+    </marker>
+
+    <marker id="arrowOrange"
+            markerWidth="10"
+            markerHeight="10"
+            refX="8"
+            refY="5"
+            orient="auto"
+            markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#EA580C"/>
+    </marker>
+
+    <marker id="arrowGray"
+            markerWidth="10"
+            markerHeight="10"
+            refX="8"
+            refY="5"
+            orient="auto"
+            markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#64748B"/>
+    </marker>
+
+    <!-- Reusable icon styles -->
+    <style>
+      text {
+        font-family:
+          Inter,
+          "PingFang SC",
+          "Microsoft YaHei",
+          "Noto Sans CJK SC",
+          Arial,
+          sans-serif;
+      }
+
+      .title {
+        font-size: 34px;
+        font-weight: 700;
+        fill: #FFFFFF;
+      }
+
+      .subtitle {
+        font-size: 16px;
+        font-weight: 400;
+        fill: #CBD5E1;
+      }
+
+      .section-title {
+        font-size: 20px;
+        font-weight: 700;
+        fill: #0F172A;
+      }
+
+      .section-subtitle {
+        font-size: 13px;
+        font-weight: 400;
+        fill: #64748B;
+      }
+
+      .card-title {
+        font-size: 17px;
+        font-weight: 700;
+        fill: #0F172A;
+      }
+
+      .card-text {
+        font-size: 13px;
+        font-weight: 400;
+        fill: #334155;
+      }
+
+      .small-text {
+        font-size: 12px;
+        font-weight: 400;
+        fill: #475569;
+      }
+
+      .tiny-text {
+        font-size: 11px;
+        font-weight: 400;
+        fill: #64748B;
+      }
+
+      .step-number {
+        font-size: 14px;
+        font-weight: 700;
+        fill: #FFFFFF;
+        text-anchor: middle;
+        dominant-baseline: middle;
+      }
+
+      .lane-label {
+        font-size: 16px;
+        font-weight: 700;
+        fill: #0F172A;
+      }
+
+      .white-title {
+        font-size: 16px;
+        font-weight: 700;
+        fill: #FFFFFF;
+      }
+
+      .white-text {
+        font-size: 12px;
+        font-weight: 400;
+        fill: #CBD5E1;
+      }
+
+      .arrow-label {
+        font-size: 11px;
+        font-weight: 600;
+        fill: #475569;
+      }
+
+      .mono {
+        font-family:
+          "SFMono-Regular",
+          Consolas,
+          "Liberation Mono",
+          monospace;
+      }
+    </style>
+  </defs>
+
+  <!-- Page background -->
+  <rect width="1600" height="1320" fill="url(#pageBackground)"/>
+
+  <!-- Header -->
+  <rect x="0" y="0" width="1600" height="125" fill="url(#headerGradient)"/>
+
+  <g transform="translate(62,35)">
+    <circle cx="27" cy="27" r="27" fill="#FFFFFF" opacity="0.13"/>
+    <path d="M14 28 L23 37 L41 18"
+          fill="none"
+          stroke="#FFFFFF"
+          stroke-width="5"
+          stroke-linecap="round"
+          stroke-linejoin="round"/>
+  </g>
+
+  <text x="130" y="56" class="title">
+    产品需求收集、整理与分析
+  </text>
+  <text x="130" y="88" class="subtitle">
+    DECP · Federated Digital Employee Collaboration Platform
+  </text>
+
+  <g transform="translate(1260,34)">
+    <rect x="0" y="0" width="276" height="58" rx="12"
+          fill="#FFFFFF" opacity="0.10"/>
+    <text x="18" y="24" class="white-text">核心业务闭环</text>
+    <text x="18" y="46" class="white-title">
+      反馈 → 分析 → 审核 → 入库
+    </text>
+  </g>
+
+  <!-- Scenario objective -->
+  <g filter="url(#smallShadow)">
+    <rect x="50" y="150" width="1500" height="78" rx="16"
+          fill="#FFFFFF" stroke="#DCE3EC"/>
+  </g>
+
+  <circle cx="83" cy="189" r="16" fill="#2563EB"/>
+  <path d="M76 189 L81 194 L91 182"
+        fill="none"
+        stroke="#FFFFFF"
+        stroke-width="3"
+        stroke-linecap="round"
+        stroke-linejoin="round"/>
+
+  <text x="112" y="181" class="section-title">场景目标</text>
+  <text x="112" y="207" class="section-subtitle">
+    将分散的客户反馈转换为结构化、去重、可追溯、可审核的产品需求，并保留人工决策权与企业数据主权。
+  </text>
+
+  <!-- Main workflow container -->
+  <rect x="50" y="252" width="1500" height="780" rx="20"
+        fill="#FFFFFF"
+        stroke="#DCE3EC"
+        stroke-width="1.5"/>
+
+  <!-- Lane backgrounds -->
+  <rect x="50" y="252" width="180" height="780" rx="20"
+        fill="#F8FAFC"/>
+  <path d="M230 252 L230 1032"
+        stroke="#CBD5E1"
+        stroke-width="1.5"/>
+
+  <!-- Horizontal lane dividers -->
+  <path d="M50 420 L1550 420" stroke="#E2E8F0"/>
+  <path d="M50 648 L1550 648" stroke="#E2E8F0"/>
+  <path d="M50 852 L1550 852" stroke="#E2E8F0"/>
+
+  <!-- Lane 1: Human -->
+  <g transform="translate(76,280)">
+    <circle cx="30" cy="25" r="18" fill="#DBEAFE" stroke="#2563EB" stroke-width="2"/>
+    <circle cx="30" cy="20" r="6" fill="#2563EB"/>
+    <path d="M19 37 C21 29,39 29,41 37"
+          fill="#2563EB"/>
+    <text x="0" y="67" class="lane-label">业务人员</text>
+    <text x="0" y="91" class="small-text">维护人员</text>
+    <text x="0" y="111" class="small-text">产品经理</text>
+  </g>
+
+  <!-- Lane 2: Agent runtime -->
+  <g transform="translate(76,458)">
+    <circle cx="30" cy="25" r="18" fill="#EDE9FE" stroke="#7C3AED" stroke-width="2"/>
+    <rect x="20" y="16" width="20" height="17" rx="4" fill="#7C3AED"/>
+    <circle cx="26" cy="24" r="2" fill="#FFFFFF"/>
+    <circle cx="34" cy="24" r="2" fill="#FFFFFF"/>
+    <path d="M26 29 L34 29" stroke="#FFFFFF" stroke-width="1.5"/>
+    <path d="M30 10 L30 16" stroke="#7C3AED" stroke-width="2"/>
+    <circle cx="30" cy="8" r="2.5" fill="#7C3AED"/>
+    <text x="0" y="67" class="lane-label">数字员工</text>
+    <text x="0" y="91" class="small-text">Agent Runtime</text>
+    <text x="0" y="111" class="small-text">推理与任务执行</text>
+  </g>
+
+  <!-- Lane 3: Gateway/data -->
+  <g transform="translate(76,690)">
+    <circle cx="30" cy="25" r="18" fill="#D1FAE5" stroke="#059669" stroke-width="2"/>
+    <path d="M21 20 L39 20 L39 34 L21 34 Z"
+          fill="none"
+          stroke="#059669"
+          stroke-width="2"/>
+    <path d="M25 25 L35 25 M25 29 L35 29"
+          stroke="#059669"
+          stroke-width="1.5"/>
+    <text x="0" y="67" class="lane-label">数据访问</text>
+    <text x="0" y="91" class="small-text">MCP</text>
+    <text x="0" y="111" class="small-text">Workspace Gateway</text>
+  </g>
+
+  <!-- Lane 4: Systems -->
+  <g transform="translate(76,890)">
+    <circle cx="30" cy="25" r="18" fill="#FEF3C7" stroke="#D97706" stroke-width="2"/>
+    <ellipse cx="30" cy="18" rx="10" ry="4" fill="#D97706"/>
+    <path d="M20 18 L20 32 C20 37,40 37,40 32 L40 18"
+          fill="none"
+          stroke="#D97706"
+          stroke-width="2"/>
+    <path d="M20 25 C20 30,40 30,40 25"
+          fill="none"
+          stroke="#D97706"
+          stroke-width="1.5"/>
+    <text x="0" y="67" class="lane-label">企业数据</text>
+    <text x="0" y="91" class="small-text">Workspace</text>
+    <text x="0" y="111" class="small-text">业务系统</text>
+  </g>
+
+  <!-- Step 1 -->
+  <g filter="url(#shadow)">
+    <rect x="270" y="280" width="245" height="110" rx="16"
+          fill="url(#humanGradient)"
+          stroke="#93C5FD"
+          stroke-width="1.5"/>
+  </g>
+  <circle cx="294" cy="304" r="15" fill="#2563EB"/>
+  <text x="294" y="305" class="step-number">1</text>
+  <text x="319" y="309" class="card-title">提交客户反馈</text>
+  <text x="291" y="337" class="card-text">自然语言 / Excel / 工单</text>
+  <text x="291" y="359" class="small-text">“客户 A 导入超过 5000 条</text>
+  <text x="291" y="378" class="small-text">订单时失败，影响月度结算。”</text>
+
+  <!-- Arrow 1 to 2 -->
+  <path d="M515 335 C550 335,550 476,585 476"
+        fill="none"
+        stroke="#2563EB"
+        stroke-width="2.5"
+        marker-end="url(#arrowBlue)"/>
+  <text x="526" y="402" class="arrow-label">创建分析任务</text>
+
+  <!-- Step 2 -->
+  <g filter="url(#shadow)">
+    <rect x="585" y="448" width="250" height="165" rx="16"
+          fill="url(#agentGradient)"
+          stroke="#C4B5FD"
+          stroke-width="1.5"/>
+  </g>
+  <circle cx="609" cy="472" r="15" fill="#7C3AED"/>
+  <text x="609" y="473" class="step-number">2</text>
+  <text x="634" y="477" class="card-title">反馈理解与结构化</text>
+
+  <g transform="translate(607,498)">
+    <rect x="0" y="0" width="205" height="91" rx="9"
+          fill="#FFFFFF" opacity="0.82"/>
+    <text x="12" y="20" class="small-text">客户：Customer A</text>
+    <text x="12" y="39" class="small-text">模块：批量订单导入</text>
+    <text x="12" y="58" class="small-text">类型：性能 / 容量问题</text>
+    <text x="12" y="77" class="small-text">影响：月度结算阻塞</text>
+  </g>
+
+  <!-- Arrow 2 to 3 -->
+  <path d="M835 530 L890 530"
+        fill="none"
+        stroke="#7C3AED"
+        stroke-width="2.5"
+        marker-end="url(#arrowPurple)"/>
+  <text x="846" y="515" class="arrow-label">制定查询计划</text>
+
+  <!-- Step 3 -->
+  <g filter="url(#shadow)">
+    <rect x="890" y="448" width="260" height="165" rx="16"
+          fill="url(#agentGradient)"
+          stroke="#C4B5FD"
+          stroke-width="1.5"/>
+  </g>
+  <circle cx="914" cy="472" r="15" fill="#7C3AED"/>
+  <text x="914" y="473" class="step-number">3</text>
+  <text x="939" y="477" class="card-title">规划数据增强任务</text>
+
+  <text x="912" y="510" class="card-text">需要补充：</text>
+
+  <g transform="translate(912,523)">
+    <rect x="0" y="0" width="100" height="27" rx="13" fill="#FFFFFF"/>
+    <text x="50" y="18" class="small-text" text-anchor="middle">历史反馈</text>
+
+    <rect x="110" y="0" width="112" height="27" rx="13" fill="#FFFFFF"/>
+    <text x="166" y="18" class="small-text" text-anchor="middle">客户工单</text>
+
+    <rect x="0" y="37" width="100" height="27" rx="13" fill="#FFFFFF"/>
+    <text x="50" y="55" class="small-text" text-anchor="middle">已有需求</text>
+
+    <rect x="110" y="37" width="112" height="27" rx="13" fill="#FFFFFF"/>
+    <text x="166" y="55" class="small-text" text-anchor="middle">产品文档</text>
+  </g>
+
+  <!-- Step 3 down to Gateway -->
+  <path d="M1020 613 L1020 680"
+        fill="none"
+        stroke="#059669"
+        stroke-width="2.5"
+        marker-end="url(#arrowGreen)"/>
+  <text x="1032" y="648" class="arrow-label">受控工具调用</text>
+
+  <!-- MCP call label -->
+  <g filter="url(#smallShadow)">
+    <rect x="866" y="685" width="310" height="125" rx="15"
+          fill="url(#gatewayGradient)"
+          stroke="#6EE7B7"
+          stroke-width="1.5"/>
+  </g>
+
+  <text x="888" y="713" class="card-title">MCP + Workspace Gateway</text>
+  <text x="888" y="740" class="small-text mono">feedback.search</text>
+  <text x="888" y="760" class="small-text mono">feedback.get</text>
+  <text x="888" y="780" class="small-text mono">requirement.find_similar</text>
+  <text x="888" y="800" class="small-text">权限检查 · 字段过滤 · 出站控制</text>
+
+  <!-- Gateway down to data -->
+  <path d="M1020 810 L1020 880"
+        fill="none"
+        stroke="#059669"
+        stroke-width="2.5"
+        marker-end="url(#arrowGreen)"/>
+  <text x="1032" y="849" class="arrow-label">本地查询与聚合</text>
+
+  <!-- Enterprise data sources -->
+  <g filter="url(#smallShadow)">
+    <rect x="270" y="890" width="200" height="105" rx="14"
+          fill="url(#dataGradient)"
+          stroke="#FCD34D"/>
+  </g>
+  <circle cx="298" cy="919" r="14" fill="#D97706"/>
+  <path d="M291 914 L305 914 M291 920 L305 920 M291 926 L301 926"
+        stroke="#FFFFFF"
+        stroke-width="2"/>
+  <text x="323" y="922" class="card-title">客户反馈库</text>
+  <text x="292" y="952" class="small-text">Excel / CSV / 表单</text>
+  <text x="292" y="973" class="small-text">非结构化客户反馈</text>
+
+  <g filter="url(#smallShadow)">
+    <rect x="480" y="890" width="200" height="105" rx="14"
+          fill="url(#dataGradient)"
+          stroke="#FCD34D"/>
+  </g>
+  <circle cx="508" cy="919" r="14" fill="#D97706"/>
+  <path d="M501 913 L515 913 L515 925 L501 925 Z"
+        fill="none"
+        stroke="#FFFFFF"
+        stroke-width="1.8"/>
+  <path d="M504 917 L512 917 M504 921 L510 921"
+        stroke="#FFFFFF"
+        stroke-width="1.4"/>
+  <text x="533" y="922" class="card-title">工单系统</text>
+  <text x="502" y="952" class="small-text">客户问题 / 日志摘要</text>
+  <text x="502" y="973" class="small-text">处理记录 / 影响范围</text>
+
+  <g filter="url(#smallShadow)">
+    <rect x="690" y="890" width="200" height="105" rx="14"
+          fill="url(#dataGradient)"
+          stroke="#FCD34D"/>
+  </g>
+  <circle cx="718" cy="919" r="14" fill="#D97706"/>
+  <path d="M711 912 L725 912 L725 926 L711 926 Z"
+        fill="none"
+        stroke="#FFFFFF"
+        stroke-width="1.8"/>
+  <path d="M714 916 L722 916 M714 920 L722 920 M714 924 L720 924"
+        stroke="#FFFFFF"
+        stroke-width="1.3"/>
+  <text x="743" y="922" class="card-title">产品知识库</text>
+  <text x="712" y="952" class="small-text">产品文档 / 版本说明</text>
+  <text x="712" y="973" class="small-text">业务规则 / 模块信息</text>
+
+  <g filter="url(#smallShadow)">
+    <rect x="900" y="890" width="200" height="105" rx="14"
+          fill="url(#dataGradient)"
+          stroke="#FCD34D"/>
+  </g>
+  <circle cx="928" cy="919" r="14" fill="#D97706"/>
+  <path d="M921 913 L935 913 M921 919 L935 919 M921 925 L931 925"
+        stroke="#FFFFFF"
+        stroke-width="2"/>
+  <text x="953" y="922" class="card-title">历史需求库</text>
+  <text x="922" y="952" class="small-text">Requirement Workspace</text>
+  <text x="922" y="973" class="small-text">历史需求 / 状态 / 版本</text>
+
+  <g filter="url(#smallShadow)">
+    <rect x="1110" y="890" width="200" height="105" rx="14"
+          fill="#F8FAFC"
+          stroke="#CBD5E1"
+          stroke-dasharray="7 5"/>
+  </g>
+  <text x="1133" y="920" class="card-title">可扩展数据源</text>
+  <text x="1133" y="948" class="small-text">CRM · ERP · 邮件 · 企业 IM</text>
+  <text x="1133" y="970" class="small-text">日志平台 · 研发 Issue · API</text>
+
+  <!-- Data source connections to gateway -->
+  <path d="M370 890 C370 838,920 850,920 810"
+        fill="none"
+        stroke="#94A3B8"
+        stroke-width="1.5"
+        stroke-dasharray="5 5"
+        marker-end="url(#arrowGray)"/>
+
+  <path d="M580 890 C580 852,970 850,970 810"
+        fill="none"
+        stroke="#94A3B8"
+        stroke-width="1.5"
+        stroke-dasharray="5 5"
+        marker-end="url(#arrowGray)"/>
+
+  <path d="M790 890 C790 850,1015 850,1015 810"
+        fill="none"
+        stroke="#94A3B8"
+        stroke-width="1.5"
+        stroke-dasharray="5 5"
+        marker-end="url(#arrowGray)"/>
+
+  <path d="M1000 890 C1000 850,1070 850,1070 810"
+        fill="none"
+        stroke="#94A3B8"
+        stroke-width="1.5"
+        stroke-dasharray="5 5"
+        marker-end="url(#arrowGray)"/>
+
+  <!-- Local result return -->
+  <path d="M866 747 C790 747,790 635,750 635"
+        fill="none"
+        stroke="#059669"
+        stroke-width="2.5"
+        marker-end="url(#arrowGreen)"/>
+  <text x="748" y="720" class="arrow-label">返回最小必要数据</text>
+
+  <!-- Step 4 analysis -->
+  <g filter="url(#shadow)">
+    <rect x="270" y="448" width="260" height="165" rx="16"
+          fill="url(#agentGradient)"
+          stroke="#C4B5FD"
+          stroke-width="1.5"/>
+  </g>
+  <circle cx="294" cy="472" r="15" fill="#7C3AED"/>
+  <text x="294" y="473" class="step-number">4</text>
+  <text x="319" y="477" class="card-title">AI 整理与分析</text>
+
+  <g transform="translate(292,500)">
+    <rect x="0" y="0" width="96" height="27" rx="13" fill="#FFFFFF"/>
+    <text x="48" y="18" class="small-text" text-anchor="middle">分类</text>
+
+    <rect x="106" y="0" width="96" height="27" rx="13" fill="#FFFFFF"/>
+    <text x="154" y="18" class="small-text" text-anchor="middle">去重</text>
+
+    <rect x="0" y="37" width="96" height="27" rx="13" fill="#FFFFFF"/>
+    <text x="48" y="55" class="small-text" text-anchor="middle">聚类</text>
+
+    <rect x="106" y="37" width="96" height="27" rx="13" fill="#FFFFFF"/>
+    <text x="154" y="55" class="small-text" text-anchor="middle">影响分析</text>
+
+    <rect x="0" y="74" width="202" height="27" rx="13" fill="#FFFFFF"/>
+    <text x="101" y="92" class="small-text" text-anchor="middle">
+      优先级建议 + 来源校验
+    </text>
+  </g>
+
+  <!-- Analysis ordering arrow -->
+  <path d="M750 635 C720 650,620 650,530 613"
+        fill="none"
+        stroke="#7C3AED"
+        stroke-width="2.5"
+        marker-end="url(#arrowPurple)"/>
+
+  <!-- Step 5 generate draft -->
+  <g filter="url(#shadow)">
+    <rect x="1185" y="448" width="320" height="165" rx="16"
+          fill="url(#agentGradient)"
+          stroke="#C4B5FD"
+          stroke-width="1.5"/>
+  </g>
+  <circle cx="1209" cy="472" r="15" fill="#7C3AED"/>
+  <text x="1209" y="473" class="step-number">5</text>
+  <text x="1234" y="477" class="card-title">生成需求草稿</text>
+
+  <g transform="translate(1207,498)">
+    <rect x="0" y="0" width="276" height="91" rx="9"
+          fill="#FFFFFF" opacity="0.85"/>
+    <text x="12" y="20" class="small-text">
+      REQ-001：提升批量订单导入能力
+    </text>
+    <text x="12" y="39" class="small-text">
+      影响客户：5　建议优先级：P1
+    </text>
+    <text x="12" y="58" class="small-text">
+      相似反馈：12　置信度：0.89
+    </text>
+    <text x="12" y="77" class="small-text">
+      状态：Draft　来源引用：3
+    </text>
+  </g>
+
+  <!-- Step 4 to Step 5 -->
+  <path d="M560 483 C760 405,1030 405,1185 482"
+        fill="none"
+        stroke="#7C3AED"
+        stroke-width="2.5"
+        marker-end="url(#arrowPurple)"/>
+  <text x="784" y="428" class="arrow-label">
+    结构化结果 + 数据来源 + 置信度
+  </text>
+
+  <!-- Step 5 to review -->
+  <path d="M1345 448 C1345 385,1020 385,1020 360"
+        fill="none"
+        stroke="#EA580C"
+        stroke-width="2.5"
+        marker-end="url(#arrowOrange)"/>
+  <text x="1042" y="420" class="arrow-label">
+    requirement.review_required
+  </text>
+
+  <!-- Step 6 review -->
+  <g filter="url(#shadow)">
+    <rect x="860" y="280" width="330" height="110" rx="16"
+          fill="url(#reviewGradient)"
+          stroke="#FDBA74"
+          stroke-width="1.5"/>
+  </g>
+  <circle cx="884" cy="304" r="15" fill="#EA580C"/>
+  <text x="884" y="305" class="step-number">6</text>
+  <text x="909" y="309" class="card-title">产品经理 Review</text>
+
+  <g transform="translate(882,332)">
+    <rect x="0" y="0" width="50" height="26" rx="13" fill="#FFFFFF"/>
+    <text x="25" y="18" class="small-text" text-anchor="middle">接受</text>
+
+    <rect x="59" y="0" width="50" height="26" rx="13" fill="#FFFFFF"/>
+    <text x="84" y="18" class="small-text" text-anchor="middle">修改</text>
+
+    <rect x="118" y="0" width="50" height="26" rx="13" fill="#FFFFFF"/>
+    <text x="143" y="18" class="small-text" text-anchor="middle">合并</text>
+
+    <rect x="177" y="0" width="50" height="26" rx="13" fill="#FFFFFF"/>
+    <text x="202" y="18" class="small-text" text-anchor="middle">拆分</text>
+
+    <rect x="236" y="0" width="50" height="26" rx="13" fill="#FFFFFF"/>
+    <text x="261" y="18" class="small-text" text-anchor="middle">拒绝</text>
+  </g>
+
+  <!-- Feedback loop -->
+  <path d="M860 300 C800 255,720 255,670 448"
+        fill="none"
+        stroke="#EA580C"
+        stroke-width="2"
+        stroke-dasharray="7 5"
+        marker-end="url(#arrowOrange)"/>
+  <text x="770" y="277" class="arrow-label">
+    请求补充数据 / 调整分析
+  </text>
+
+  <!-- Approval write path -->
+  <path d="M1190 335 L1470 335 L1470 700 L1180 700"
+        fill="none"
+        stroke="#059669"
+        stroke-width="2.5"
+        marker-end="url(#arrowGreen)"/>
+  <text x="1202" y="319" class="arrow-label">批准后正式写入</text>
+
+  <!-- Commit card in Gateway lane -->
+  <g filter="url(#smallShadow)">
+    <rect x="1210" y="680" width="295" height="130" rx="15"
+          fill="url(#successGradient)"
+          stroke="#86EFAC"
+          stroke-width="1.5"/>
+  </g>
+  <circle cx="1235" cy="705" r="15" fill="#16A34A"/>
+  <text x="1235" y="706" class="step-number">7</text>
+  <text x="1260" y="710" class="card-title">校验并提交正式需求</text>
+  <text x="1232" y="740" class="small-text">Schema Validation</text>
+  <text x="1232" y="760" class="small-text">Permission + Conflict Check</text>
+  <text x="1232" y="780" class="small-text">Idempotency + Version Commit</text>
+
+  <!-- Commit to Product Workspace -->
+  <path d="M1355 810 L1355 850 L1420 850 L1420 890"
+        fill="none"
+        stroke="#059669"
+        stroke-width="2.5"
+        marker-end="url(#arrowGreen)"/>
+
+  <!-- Product Workspace official object -->
+  <g filter="url(#smallShadow)">
+    <rect x="1320" y="890" width="200" height="105" rx="14"
+          fill="url(#successGradient)"
+          stroke="#86EFAC"
+          stroke-width="1.5"/>
+  </g>
+  <circle cx="1348" cy="919" r="14" fill="#16A34A"/>
+  <path d="M1341 919 L1346 924 L1355 913"
+        fill="none"
+        stroke="#FFFFFF"
+        stroke-width="2.2"
+        stroke-linecap="round"
+        stroke-linejoin="round"/>
+  <text x="1373" y="922" class="card-title">Product Workspace</text>
+  <text x="1342" y="952" class="small-text">正式 Requirement Object</text>
+  <text x="1342" y="973" class="small-text">版本 · 来源 · 审批 · 审计</text>
+
+  <!-- Final output area -->
+  <g filter="url(#shadow)">
+    <rect x="50" y="1035" width="1500" height="158" rx="20"
+          fill="#FFFFFF"
+          stroke="#DCE3EC"/>
+  </g>
+
+  <text x="78" y="1070" class="section-title">最终输出与业务反馈</text>
+  <text x="78" y="1094" class="section-subtitle">
+    正式需求对象成为后续产品规划、研发协作和客户反馈闭环的统一事实来源。
+  </text>
+
+  <!-- Output cards -->
+  <g filter="url(#smallShadow)">
+    <rect x="78" y="1114" width="260" height="55" rx="12"
+          fill="#EFF6FF"
+          stroke="#BFDBFE"/>
+  </g>
+  <circle cx="104" cy="1142" r="14" fill="#2563EB"/>
+  <path d="M98 1135 L110 1135 M98 1141 L110 1141 M98 1147 L107 1147"
+        stroke="#FFFFFF"
+        stroke-width="1.8"/>
+  <text x="128" y="1139" class="card-title">结构化需求</text>
+  <text x="128" y="1158" class="tiny-text">字段完整、Schema 标准化</text>
+
+  <g filter="url(#smallShadow)">
+    <rect x="360" y="1114" width="260" height="55" rx="12"
+          fill="#F5F3FF"
+          stroke="#DDD6FE"/>
+  </g>
+  <circle cx="386" cy="1142" r="14" fill="#7C3AED"/>
+  <path d="M380 1147 L380 1137 L386 1132 L392 1137 L392 1147"
+        fill="none"
+        stroke="#FFFFFF"
+        stroke-width="1.7"/>
+  <text x="410" y="1139" class="card-title">分析报告</text>
+  <text x="410" y="1158" class="tiny-text">聚类、影响范围、优先级</text>
+
+  <g filter="url(#smallShadow)">
+    <rect x="642" y="1114" width="260" height="55" rx="12"
+          fill="#F0FDF4"
+          stroke="#BBF7D0"/>
+  </g>
+  <circle cx="668" cy="1142" r="14" fill="#16A34A"/>
+  <path d="M661 1142 L666 1147 L675 1136"
+        fill="none"
+        stroke="#FFFFFF"
+        stroke-width="2"/>
+  <text x="692" y="1139" class="card-title">产品 Workspace</text>
+  <text x="692" y="1158" class="tiny-text">正式入库、版本化管理</text>
+
+  <g filter="url(#smallShadow)">
+    <rect x="924" y="1114" width="260" height="55" rx="12"
+          fill="#FFFBEB"
+          stroke="#FDE68A"/>
+  </g>
+  <circle cx="950" cy="1142" r="14" fill="#D97706"/>
+  <path d="M943 1136 L957 1136 L957 1148 L943 1148 Z"
+        fill="none"
+        stroke="#FFFFFF"
+        stroke-width="1.7"/>
+  <path d="M947 1140 L953 1140 M947 1144 L953 1144"
+        stroke="#FFFFFF"
+        stroke-width="1.3"/>
+  <text x="974" y="1139" class="card-title">Excel / 报表</text>
+  <text x="974" y="1158" class="tiny-text">兼容现有产品管理流程</text>
+
+  <g filter="url(#smallShadow)">
+    <rect x="1206" y="1114" width="299" height="55" rx="12"
+          fill="#FFF7ED"
+          stroke="#FED7AA"/>
+  </g>
+  <circle cx="1232" cy="1142" r="14" fill="#EA580C"/>
+  <path d="M1224 1142 L1230 1148 L1240 1135"
+        fill="none"
+        stroke="#FFFFFF"
+        stroke-width="2"/>
+  <text x="1256" y="1139" class="card-title">客户反馈闭环</text>
+  <text x="1256" y="1158" class="tiny-text">同步状态、规划与处理结果</text>
+
+  <!-- Governance plane -->
+  <g filter="url(#shadow)">
+    <rect x="50" y="1217" width="1500" height="55" rx="15"
+          fill="url(#governanceGradient)"/>
+  </g>
+
+  <text x="78" y="1251" class="white-title">全流程治理</text>
+
+  <g transform="translate(220,1232)">
+    <rect x="0" y="0" width="132" height="27" rx="13"
+          fill="#FFFFFF" opacity="0.10"/>
+    <text x="66" y="18" class="white-text" text-anchor="middle">
+      身份与委托
+    </text>
+
+    <rect x="148" y="0" width="132" height="27" rx="13"
+          fill="#FFFFFF" opacity="0.10"/>
+    <text x="214" y="18" class="white-text" text-anchor="middle">
+      最小权限
+    </text>
+
+    <rect x="296" y="0" width="132" height="27" rx="13"
+          fill="#FFFFFF" opacity="0.10"/>
+    <text x="362" y="18" class="white-text" text-anchor="middle">
+      数据出站控制
+    </text>
+
+    <rect x="444" y="0" width="132" height="27" rx="13"
+          fill="#FFFFFF" opacity="0.10"/>
+    <text x="510" y="18" class="white-text" text-anchor="middle">
+      人工审批
+    </text>
+
+    <rect x="592" y="0" width="132" height="27" rx="13"
+          fill="#FFFFFF" opacity="0.10"/>
+    <text x="658" y="18" class="white-text" text-anchor="middle">
+      来源追踪
+    </text>
+
+    <rect x="740" y="0" width="132" height="27" rx="13"
+          fill="#FFFFFF" opacity="0.10"/>
+    <text x="806" y="18" class="white-text" text-anchor="middle">
+      版本与 Hash
+    </text>
+
+    <rect x="888" y="0" width="132" height="27" rx="13"
+          fill="#FFFFFF" opacity="0.10"/>
+    <text x="954" y="18" class="white-text" text-anchor="middle">
+      全程审计
+    </text>
+
+    <rect x="1036" y="0" width="180" height="27" rx="13"
+          fill="#FFFFFF" opacity="0.10"/>
+    <text x="1126" y="18" class="white-text" text-anchor="middle">
+      Prompt Injection 防护
+    </text>
+  </g>
+
+  <!-- Footer -->
+  <text x="800" y="1290"
+        text-anchor="middle"
+        class="tiny-text">
+    Gateway follows the data boundary · Human remains accountable · Business data remains under Workspace policy control
+  </text>
+</svg>

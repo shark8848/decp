@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "decp": {
+      "command": "python",
+      "args": ["-m", "decp_core.mcp_.main"],
+      "cwd": "/home/decp",
+      "env": {
+        "DECP_STORAGE_BACKEND": "sqlite",
+        "DECP_SQLITE_PATH": "/home/decp/data/decp.db",
+        "DECP_REPORTS_DIR": "/home/decp/data/reports"
+      }
+    }
+  }
+}

@@ -1,0 +1,83 @@
+# =============================================================================
+# DECP · 联邦数字员工协作平台 — Docker Compose
+#
+# 服务:
+#   decp-mcp   DECP MCP server（streamable http，默认 18100）
+#   postgres   可选 PostgreSQL（生产数据形态；SQLite 单机场景可移除）
+#
+# 启动（http 模式 + PostgreSQL）:
+#   docker compose up -d --build
+#   curl -X POST http://localhost:18100/mcp -H 'Content-Type: application/json' \
+#        -d '{"jsonrpc":"2.0","method":"initialize","id":1,"params":{"protocolVersion":"2025-06-18","capabilities":{}}}'
+#
+# 仅 MCP server（SQLite 本地卷）:
+#   docker compose up -d --build decp-mcp
+#
+# 存储切换: 设置环境变量 DECP_STORAGE_BACKEND（sqlite|postgres）
+# 详细部署说明: docs/docker-deployment.md
+# =============================================================================
+
+name: decp
+
+services:
+  decp-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: decp-core:latest
+    container_name: decp-mcp
+    restart: unless-stopped
+    environment:
+      # ---- 存储：默认 SQLite；切 PG 时改为 postgres 并取消下方 postgres 服务注释 ----
+      DECP_STORAGE_BACKEND: ${DECP_STORAGE_BACKEND:-sqlite}
+      DECP_SQLITE_PATH: /app/data/decp.db
+      DECP_REPORTS_DIR: /app/data/reports
+      DECP_DATA_DIR: /app/data
+      # ---- 传输：stdio（默认，供 MCP 客户端连接）| http ----
+      DECP_MCP_TRANSPORT: ${DECP_MCP_TRANSPORT:-stdio}
+      DECP_MCP_PORT: 18100
+      DECP_LOG_LEVEL: ${DECP_LOG_LEVEL:-INFO}
+      # ---- 数字员工工具后端（direct | client）----
+      DECP_SKILL_TOOL_BACKEND: ${DECP_SKILL_TOOL_BACKEND:-direct}
+      # ---- PostgreSQL（使用 postgres 服务时开启）----
+      DECP_PG_HOST: postgres
+      DECP_PG_PORT: 5432
+      DECP_PG_DB: decp
+      DECP_PG_USER: decp
+      DECP_PG_PASSWORD: ${DECP_PG_PASSWORD:-1qaz2wsx}
+    volumes:
+      - decp-data:/app/data
+    ports:
+      # http 模式暴露 18100；stdio 模式下无网络端口（由 MCP 客户端注入 stdin/stdout）
+      - "18100:18100"
+    # 健康检查：http 模式探测端口；stdio 模式无端口，改为进程存活探测（见 Dockerfile 注释）
+    healthcheck:
+      test: ["CMD", "decp-healthcheck", "--port", "18100", "--timeout", "3"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: decp-postgres
+    restart: unless-stopped
+    profiles: ["postgres"]          # 默认不启动；docker compose --profile postgres up -d
+    environment:
+      POSTGRES_DB: decp
+      POSTGRES_USER: decp
+      POSTGRES_PASSWORD: ${DECP_PG_PASSWORD:-1qaz2wsx}
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U decp -d decp"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  decp-data:
+  pg-data:

@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "decp-core"
+version = "0.1.0"
+description = "DECP · 联邦数字员工协作平台 —— 产品需求收集、整理与分析（数据层 + MCP 工具层 + 数字员工 Skill 层）"
+requires-python = ">=3.12"
+dependencies = [
+  "mcp>=2.0,<3.0",
+  "pydantic>=2.6,<3.0",
+  "pydantic-settings>=2.2",
+  "jinja2>=3.1",
+  "openpyxl>=3.1",
+  "psycopg[binary]>=3.1",
+  "psycopg-pool>=3.1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.23"]
+# ikc-log-center 远程日志上报 SDK（pip 安装；未安装自动回落标准库）
+logging = ["ikc-log-center>=1.4.10"]
+
+[project.scripts]
+decp-mcp = "decp_core.mcp_.main:run_stdio"
+decp-demo = "decp_core.cli.demo:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["decp_core*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

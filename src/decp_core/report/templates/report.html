@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>{{ title }}</title>
+<style>
+  :root { --navy:#1E3A8A; --slate:#334155; --border:#E2E8F0; --bg:#F8FAFC; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family: "PingFang SC","Microsoft YaHei","Noto Sans CJK SC",Arial,sans-serif;
+         background:var(--bg); color:var(--slate); padding:24px; }
+  .wrap { max-width:1100px; margin:0 auto; }
+  header { background:linear-gradient(135deg,#172554,#3730A3); color:#fff;
+           border-radius:16px; padding:24px 28px; margin-bottom:20px; }
+  header h1 { font-size:22px; }
+  header p { color:#CBD5E1; font-size:13px; margin-top:6px; }
+  .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:20px; }
+  .stat { background:#fff; border:1px solid var(--border); border-radius:12px;
+          padding:14px 16px; box-shadow:0 1px 3px rgba(15,23,42,.06); }
+  .stat b { font-size:24px; color:var(--navy); display:block; }
+  .stat span { font-size:12px; color:#64748B; }
+  .card { background:#fff; border:1px solid var(--border); border-radius:12px;
+          padding:18px 20px; margin-bottom:16px; box-shadow:0 1px 3px rgba(15,23,42,.06); }
+  .card h2 { font-size:15px; color:#0F172A; margin-bottom:12px;
+             padding-bottom:8px; border-bottom:1px solid var(--border); }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { background:var(--navy); color:#fff; text-align:left; padding:8px 10px; }
+  td { padding:8px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
+  tr:hover td { background:#F1F5F9; }
+  .chip { display:inline-block; padding:2px 10px; border-radius:12px;
+          font-size:12px; font-weight:600; margin:2px 4px 2px 0; }
+  .chip.blue { background:#DBEAFE; color:#1D4ED8; }
+  .chip.purple { background:#EDE9FE; color:#6D28D9; }
+  .chip.green { background:#DCFCE7; color:#15803D; }
+  .chip.orange { background:#FFEDD5; color:#C2410C; }
+  .chip.red { background:#FEE2E2; color:#B91C1C; }
+  .p0 { color:#B91C1C; font-weight:700; } .p1 { color:#EA580C; font-weight:700; }
+  .p2 { color:#B45309; font-weight:600; } .p3 { color:#64748B; }
+  .muted { color:#94A3B8; font-size:12px; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .grid2 .card { margin-bottom:0; }
+  @media (max-width:900px){ .stats{grid-template-columns:repeat(2,1fr);} .grid2{grid-template-columns:1fr;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>📋 {{ title }}</h1>
+    <p>DECP · 产品需求收集、整理与分析 · 生成时间 {{ generated_at }}</p>
+  </header>
+
+  <div class="stats">
+    <div class="stat"><b>{{ stats.feedback_total }}</b><span>反馈总数</span></div>
+    <div class="stat"><b>{{ stats.requirement_total }}</b><span>需求数</span></div>
+    <div class="stat"><b>{{ stats.cluster_count }}</b><span>聚类主题</span></div>
+    <div class="stat"><b>{{ stats.duplicate_groups }}</b><span>去重分组</span></div>
+  </div>
+
+  {% if requirements %}
+  <div class="card">
+    <h2>需求清单</h2>
+    <table>
+      <tr><th>ID</th><th>标题</th><th>模块</th><th>优先级</th><th>状态</th><th>置信度</th><th>影响客户</th></tr>
+      {% for r in requirements %}
+      <tr>
+        <td class="muted">{{ r.id }}</td>
+        <td>{{ r.title }}</td>
+        <td>{{ r.module or '-' }}</td>
+        <td class="p{{ r.priority[1] if r.priority else '2' }}">{{ r.priority }}</td>
+        <td><span class="chip {{ 'green' if r.status=='accepted' else 'blue' if r.status=='draft' else 'orange' }}">{{ r.status }}</span></td>
+        <td>{{ '%.2f'|format(r.confidence) }}</td>
+        <td>{{ r.impact_customers }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endif %}
+
+  <div class="grid2">
+    <div class="card">
+      <h2>聚类主题</h2>
+      <table>
+        <tr><th>主题</th><th>反馈数</th><th>关键词</th></tr>
+        {% for c in clusters %}
+        <tr><td>{{ c.title }}</td><td>{{ c.count }}</td>
+            <td>{% for k in c.keywords[:5] %}<span class="chip blue">{{ k }}</span>{% endfor %}</td></tr>
+        {% else %}
+        <tr><td colspan="3" class="muted">暂无聚类结果</td></tr>
+        {% endfor %}
+      </table>
+    </div>
+    <div class="card">
+      <h2>分类分布</h2>
+      <table>
+        <tr><th>分类</th><th>反馈数</th></tr>
+        {% for cat, ids in categories.items() %}
+        <tr><td>{{ cat }}</td><td>{{ ids|length }}</td></tr>
+        {% else %}
+        <tr><td colspan="2" class="muted">暂无分类</td></tr>
+        {% endfor %}
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>反馈明细（优先级建议）</h2>
+    <table>
+      <tr><th>ID</th><th>客户</th><th>模块</th><th>类型</th><th>影响</th><th>优先级</th><th>内容</th></tr>
+      {% for f in feedbacks %}
+      <tr>
+        <td class="muted">{{ f.id }}</td>
+        <td>{{ f.customer or '-' }}</td>
+        <td>{{ f.module or '-' }}</td>
+        <td>{{ f.structured.get('feedback_type','-') }}</td>
+        <td>{{ f.structured.get('impact_severity','-') }}</td>
+        <td class="p{{ priorities.get(f.id,'P2')[1] if priorities.get(f.id,'P2') else '2' }}">{{ priorities.get(f.id,'-') }}</td>
+        <td>{{ f.content[:80] }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>影响分析</h2>
+    <table>
+      <tr><th>反馈</th><th>模块</th><th>严重度</th><th>影响客户</th><th>影响描述</th></tr>
+      {% for fid, imp in impact.items() %}
+      <tr>
+        <td class="muted">{{ fid }}</td>
+        <td>{{ imp.module or '-' }}</td>
+        <td><span class="chip {{ 'red' if imp.severity=='high' else 'orange' if imp.severity=='medium' else 'blue' }}">{{ imp.severity }}</span></td>
+        <td>{{ imp.affected_customers or '未知' }}</td>
+        <td>{{ imp.impact_text[:60] }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>来源校验</h2>
+    <table>
+      <tr><th>反馈ID</th><th>渠道</th><th>有来源引用</th><th>可校验</th></tr>
+      {% for s in sources %}
+      <tr>
+        <td class="muted">{{ s.feedback_id }}</td>
+        <td>{{ s.channel }}</td>
+        <td>{{ '是' if s.has_source_ref else '否' }}</td>
+        <td>{{ '✓' if s.verifiable else '✗' }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+</body>
+</html>

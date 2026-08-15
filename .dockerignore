@@ -1,0 +1,36 @@
+# ---- VCS ----
+.git
+.gitignore
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# ---- 构建产物 ----
+build/
+dist/
+*.whl
+
+# ---- 数据 / 运行时文件（卷挂载，不进镜像）----
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+logs/
+
+# ---- 配置（敏感信息不打包，运行时注入）----
+.env
+.env.*
+!.env.example
+
+# ---- 文档与杂项 ----
+docs/
+*.svg
+.idea/
+.vscode/
+.pytest_cache/
+.mypy_cache/

@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# 虚拟环境
+.venv/
+venv/
+
+# 配置（含数据库凭据）
+.env
+
+# 数据产物
+data/decp.db
+data/decp.db-wal
+data/decp.db-shm
+data/reports/
+data/exports/
+data/logs/
+
+# 运行日志（本地滚动/测试产物）
+logs/
+*.log
+
+# 测试产物
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE / 系统
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Windows
+*.Zone.Identifier
