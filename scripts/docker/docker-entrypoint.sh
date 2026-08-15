@@ -24,7 +24,9 @@ fi
 TRANSPORT="${DECP_MCP_TRANSPORT:-stdio}"
 PORT="${DECP_MCP_PORT:-18100}"
 
-echo "[decp] transport=${TRANSPORT} backend=${DECP_STORAGE_BACKEND:-sqlite} data=${DATA_DIR}"
+# 启动信息打到 stderr：stdio 模式下 stdout 是 MCP 协议通道，echo 到 stdout 会
+# 污染 JSON-RPC 流，导致外部 MCP 客户端解析失败。
+echo "[decp] transport=${TRANSPORT} backend=${DECP_STORAGE_BACKEND:-sqlite} data=${DATA_DIR}" >&2
 
 case "$TRANSPORT" in
   stdio)

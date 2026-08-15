@@ -149,10 +149,13 @@ def configure_logging(
     # ---- 回退路径：标准库滚动文件 handler（SDK 未安装时的本地日志）----------
 
     # ---- 回落：标准库 basicConfig + 滚动文件（无 SDK 场景）-------------------
+    # console 日志走 stderr：stdio 模式下 stdout 是 MCP 协议通道，任何
+    # 日志输出到 stdout 都会污染 JSON-RPC 流（与 SDK 路径 StreamHandler()
+    # 默认 stderr 行为一致）。
     log_level = (level or _env("DECP_LOG_LEVEL") or _env("LOG_LEVEL") or "INFO").upper()
     logging.basicConfig(
         level=getattr(logging, log_level, logging.INFO),
-        stream=sys.stdout,
+        stream=sys.stderr,
         format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
     )
     if settings is not None:

@@ -37,6 +37,7 @@ RUN pip wheel --no-deps --wheel-dir /build/wheels . \
     && pip wheel --wheel-dir /build/wheels \
        "mcp>=2.0,<3.0" "pydantic>=2.6,<3.0" "pydantic-settings>=2.2" \
        "jinja2>=3.1" "openpyxl>=3.1" "psycopg[binary]>=3.1" "psycopg-pool>=3.1" \
+       "sqlalchemy>=2.0" "aiosqlite>=0.20" \
        "ikc-log-center>=1.4.10"
 
 # ---- 阶段 2：运行镜像 ------------------------------------------------------

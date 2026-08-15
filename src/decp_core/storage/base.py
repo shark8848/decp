@@ -1,8 +1,8 @@
 """存储抽象层：定义存储后端须实现的最小契约。
 
-两种实现：
-- SQLiteStorage    -> 零依赖，单文件，开发/演示默认
-- PostgresStorage  -> psycopg3 连接池，生产形态
+实现：
+- ORMStorage（SQLAlchemy 2.0 async）-> 单一实现，通过 engine URL 切换
+  SQLite（sqlite+aiosqlite://，单文件默认）/ PostgreSQL（postgresql+psycopg://，生产形态）
 
 数据域：feedback（反馈）、requirement（需求）、app_meta（版本/hash 等审计元信息）。
 """
