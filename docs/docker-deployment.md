@@ -99,6 +99,35 @@ Compose 服务：
 
 > 说明：`postgres` 服务使用 `profiles` 隔离，默认不启动；需要 PG 时加 `--profile postgres`。切换存储到 PG：`DECP_STORAGE_BACKEND=postgres`（compose 已注入 `DECP_PG_HOST=postgres` 指向该服务）。
 
+### 连接外部 PostgreSQL（已有集群 / Patroni）
+
+复用已有 PG 集群时，无需启动 compose 内置 `postgres` 服务，仅运行 `decp-mcp` 并指向外部实例：
+
+```bash
+docker run -d \
+  --name decp-mcp \
+  --restart unless-stopped \
+  -p 18100:18100 \
+  --env-file /path/to/decp-pg.env \
+  -v decp-data:/app/data \
+  decp-core:latest
+```
+
+`decp-pg.env`（用 `--env-file` 注入，避免 shell 对密码特殊字符的展开）：
+
+```bash
+DECP_STORAGE_BACKEND=postgres
+DECP_PG_HOST=10.88.154.215
+DECP_PG_PORT=6000
+DECP_PG_DB=decp
+DECP_PG_USER=decp
+DECP_PG_PASSWORD=你的密码
+DECP_MCP_TRANSPORT=http
+DECP_MCP_PORT=18100
+```
+
+> **密码含特殊字符（`@` `#` `$` `!` 等）必须使用 `--env-file` 注入**，不要用 `-e "DECP_PG_PASSWORD=..."` 命令行形式——即使外层单引号，`#` `$` 仍可能在容器/脚本层被截断。应用层已对 DSN 做 URL 百分号编码（`urllib.parse.quote`），只需保证环境变量本身原样到达。
+
 ## 4. 健康检查
 
 `scripts/docker/healthcheck.py` 支持三种模式：
