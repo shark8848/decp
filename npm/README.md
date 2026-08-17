@@ -4,7 +4,7 @@ DECP（联邦数字员工协作平台）的 **skill 定义 + MCP server 启动�
 
 通过 `npm install @shark8848/decp-core` 即可获得：
 
-- `skills/` — 3 个技能定义（SKILL.md + manifest.json），可直接被 **Claude Code / AgentScope / deerflow** 加载
+- `skills/` — 4 个技能定义（SKILL.md + manifest.json，含 `soul` 人格注入），可直接被 **Claude Code / AgentScope / deerflow** 加载
 - `decp-mcp` — 一行启动 DECP MCP server（Node 包装 Python，自动准备 venv）
 - `decp-setup` — 一键安装 Python 运行环境
 - `Dockerfile` + `docker-compose.yml` — 容器化部署
@@ -54,9 +54,23 @@ cp -r node_modules/@shark8848/decp-core/skills/* ~/.claude/skills/
 
 ```bash
 cd node_modules/@shark8848/decp-core
-docker compose up -d --build decp-mcp        # SQLite 单机
-DECP_PG_PASSWORD=你的强密码 docker compose --profile postgres up -d --build   # PostgreSQL 生产形态
+docker build -t decp-core:latest .
+
+# 正式生产运行（推荐：数据持久化，--name 固定容器名）
+docker run -d --name decp-mcp \
+  -p 18100:18100 \
+  -e DECP_MCP_TRANSPORT=http \
+  -v decp-data:/app/data \
+  decp-core:latest
+
+# compose：SQLite 单机
+docker compose up -d --build decp-mcp
+
+# compose：PostgreSQL 生产形态
+DECP_PG_PASSWORD=你的强密码 docker compose --profile postgres up -d --build
 ```
+
+> ⚠️ **不要用 `--rm` 跑正式服务**：`--rm` 会在容器退出时删除容器与数据，仅适合一次性验证。
 
 ## 环境变量
 

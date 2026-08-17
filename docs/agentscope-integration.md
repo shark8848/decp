@@ -15,9 +15,9 @@ DECP（联邦数字员工协作平台）以 **MCP Workspace** 形式对外提供
 
 | 验证项 | 结果 |
 | --- | --- |
-| `LocalSkillLoader` 加载 DECP 3 个 SKILL.md | ✅ 全部加载，name/description/markdown 就位 |
+| `LocalSkillLoader` 加载 DECP 4 个 SKILL.md（含 `soul` 人格注入） | ✅ 全部加载，name/description/markdown 就位 |
 | frontmatter 字段兼容（name/version/description） | ✅ 无缺失 |
-| 技能正文注入 | ✅ `Skill` 工具可读取 974 / 2352 / 1006 字符正文 |
+| 技能正文注入 | ✅ `Skill` 工具可读取各技能正文（soul 为 1xxx 字符人格定义） |
 
 ## 3. 对接步骤
 
@@ -111,6 +111,7 @@ DECP 数据域（SQLite / PostgreSQL）
 | `feedback-collect` | 录入客户反馈并结构化 | `feedback.submit` |
 | `requirement-analysis` | 收集→整理→分析→审核→入库 全闭环 | `feedback.*` + `requirement.*` + `report.*`（12 个） |
 | `requirement-query` | 只读查询/查重/统计 | `feedback.search/get`、`requirement.search/get/find_similar`、`domain.stats`（6 个） |
+| `soul` | 人格注入（不触发）：立场与红线 | 无 |
 
 ## 4. 治理约束（AgentScope 侧注意）
 
@@ -125,7 +126,7 @@ DECP 技能正文内含硬性行为约束，AgentScope 加载后应原样遵循�
 
 | 验证项 | 状态 |
 | --- | --- |
-| `LocalSkillLoader` 成功列出 3 个技能（name/description/markdown 就位） | ✅ 已实测（2.0.6） |
+| `LocalSkillLoader` 成功列出 4 个技能（含 `soul`，name/description/markdown 就位） | ✅ 已实测（2.0.6） |
 | `MCPClient` 经 stdio 连接 DECP server，`list_tools()` 返回 13 个工具 | ✅ 已实测 |
 | `get_tool("feedback.submit")` + `tool.call(...)` 真实写入 feedback 数据域并落库 | ✅ 已实测 |
 | LLM 通过 `Skill` 工具读取技能正文后路由到对应技能 | 🔲 需接入 LLM 端到端验证 |

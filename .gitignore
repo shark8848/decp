@@ -45,3 +45,9 @@ htmlcov/
 
 # Windows
 *.Zone.Identifier
+
+# Docker 镜像导出包（本地构建产物，不入库）
+docker/images/*.tar
+
+# 技能打包产物
+skills/*.zip

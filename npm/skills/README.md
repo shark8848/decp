@@ -9,6 +9,7 @@
 | 需求收集-整理-分析 | [requirement-analysis/](requirement-analysis/SKILL.md) | 完整闭环：反馈 → 分析 → 审核 → 入库 | `feedback.*` + `requirement.*` + `report.*` |
 | 需求与反馈查询 | [requirement-query/](requirement-query/SKILL.md) | 只读查询：反馈/需求列表、详情、查重、统计 | `feedback.search`/`get`、`requirement.search`/`get`/`find_similar`、`domain.stats` |
 | 客户反馈收集 | [feedback-collect/](feedback-collect/SKILL.md) | 录入反馈并结构化（自然语言/工单/Excel） | `feedback.submit` |
+| 数字员工人格 | [soul/](soul/SKILL.md) | 人格 / 价值观 / 行为准则：定义数字员工以何种立场工作，与流程技能配合注入 | 无（不触发，仅注入） |
 
 ## 目录规范
 
@@ -22,7 +23,7 @@ skills/{skill-name}/
 
 - **SKILL.md frontmatter**：`name`（技能标识）、`description`（触发描述，LLM 调度依据）。
 - **SKILL.md 正文**：数据域工具清单、标准执行流程、参数收集要求、行为约束（人工审批不可绕过 / 最小必要数据 / 来源追踪 / Prompt Injection 防护）。
-- **manifest.json**：`depends_on_tools` 声明依赖的 MCP 工具，`depends_on_mcp_servers` 声明依赖的 MCP server（本平台为 `decp`）。
+- **manifest.json**：`depends_on_tools` 声明依赖的 MCP 工具，`depends_on_mcp_servers` 声明依赖的 MCP server（本平台为 `decp`）。`soul` 技能不依赖任何工具，`depends_on_tools` 为空数组，由运行时注入人格/约束，不作为可触发技能。
 
 ## 对接方式
 
@@ -39,6 +40,7 @@ DECP 数据域（feedback / requirement / app_meta，SQLite / PostgreSQL）
 ```
 
 - Agent 的 skill 调度器加载本目录 SKILL.md；执行时调用 `decp` MCP server 的对应工具。
+- `soul` 作为数字员工的人格注入：加载后让 Agent 明确立场与红线，**不参与意图路由**（不在触发技能之列）。
 - 人工审批由 `requirement.review` 保证：数字员工只能产出 Draft，正式入库必须有产品经理审核记录。
 
 ## 新增技能

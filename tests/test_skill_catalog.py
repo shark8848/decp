@@ -24,7 +24,7 @@ def test_skill_catalog_scans_decp_skills():
     cat = SkillCatalog(SKILLS_ROOT)
     skills = cat.scan()
     names = {s.name for s in skills}
-    assert names == {"requirement-analysis", "requirement-query", "feedback-collect"}
+    assert names == {"requirement-analysis", "requirement-query", "feedback-collect", "soul"}
 
 
 def test_skill_catalog_frontmatter():

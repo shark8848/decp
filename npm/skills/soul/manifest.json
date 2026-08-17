@@ -1,0 +1,12 @@
+{
+  "skill_id": "soul",
+  "name": "soul",
+  "version": "0.1.0",
+  "release_channel": "staging",
+  "compatibility": "deerflow>=0.0.1",
+  "risk_level": "low",
+  "description": "DECP 数字员工的灵魂定义（人格 / 价值观 / 行为准则）。作为数字员工加载时的人物设定与约束注入，与三个流程技能（feedback-collect / requirement-analysis / requirement-query）配合使用。",
+  "depends_on_tools": [],
+  "depends_on_mcp_servers": [],
+  "tags": ["decp", "soul", "persona", "governance"]
+}

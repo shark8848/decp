@@ -13,23 +13,12 @@ docker build -t decp-core:latest .
 
 ## 2. 运行方式
 
-### 2.1 stdio 模式（默认）— MCP 客户端注入
+> ⚠️ **`--rm` 仅用于一次性验证**：容器退出时自动删除容器与数据，不适合正式服务。正式运行请使用下面的命令（`-d` 后台、`--name` 固定容器名、`-v` 数据卷持久化）。
 
-容器以 stdio 传输常驻，由 MCP 客户端（Claude Code、AgentScope 等）注入 stdin/stdout：
-
-```bash
-docker run --rm -i \
-  -v decp-data:/app/data \
-  decp-core:latest
-```
-
-- `-i` 保持 stdin 打开（MCP 客户端连接所必需）。
-- SQLite 数据持久化在 `decp-data` 卷（`/app/data/decp.db`）。
-
-### 2.2 streamable http 模式
+### 2.1 streamable http 模式（正式生产，推荐）
 
 ```bash
-docker run --rm -d \
+docker run -d --name decp-mcp \
   -p 18100:18100 \
   -e DECP_MCP_TRANSPORT=http \
   -e DECP_MCP_PORT=18100 \
@@ -38,6 +27,19 @@ docker run --rm -d \
 ```
 
 连接地址：`http://localhost:18100/mcp`（MCP Streamable HTTP 端点）。
+
+### 2.2 stdio 模式（默认）— MCP 客户端注入
+
+容器以 stdio 传输常驻，由 MCP 客户端（Claude Code、AgentScope 等）注入 stdin/stdout：
+
+```bash
+docker run -d --name decp-mcp \
+  -v decp-data:/app/data \
+  decp-core:latest
+```
+
+- `-i` 保持 stdin 打开（MCP 客户端连接所必需）。
+- SQLite 数据持久化在 `decp-data` 卷（`/app/data/decp.db`）。
 
 ### 2.3 透传命令（容器内执行 seed / demo / 任意命令）
 
@@ -55,6 +57,8 @@ docker run --rm -i -v decp-data:/app/data decp-core:latest \
 # 任意 shell
 docker run --rm -it -v decp-data:/app/data decp-core:latest sh
 ```
+
+> 透传命令是一次性操作，使用 `--rm` 合理；正式常驻服务请用 2.1 / 2.2 的命令。
 
 ### 2.4 环境变量
 

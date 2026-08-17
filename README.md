@@ -29,26 +29,26 @@ npx decp-mcp --transport http --port 18100
 cp -r node_modules/@shark8848/decp-core/skills/* ~/.claude/skills/   # 加载技能到 Claude Code
 ```
 
-npm 包内含 `skills/`（3 个 SKILL.md + manifest.json，Claude Code / AgentScope / deerflow 直接加载）、`decp-mcp` / `decp-setup`（Node 启动器）、`Dockerfile` + `docker-compose.yml`（容器部署）。Node 启动器自动检测 python3 ≥ 3.12 → 创建 `~/.decp/venv` → pip 安装 decp-core；stdio 模式 stdin/stdout 透传（MCP 协议纯净），http 模式监听 18100。
+npm 包内含 `skills/`（4 个 SKILL.md + manifest.json，含 `soul` 人格注入，Claude Code / AgentScope / deerflow 直接加载）、`decp-mcp` / `decp-setup`（Node 启动器）、`Dockerfile` + `docker-compose.yml`（容器部署）。Node 启动器自动检测 python3 ≥ 3.12 → 创建 `~/.decp/venv` → pip 安装 decp-core；stdio 模式 stdin/stdout 透传（MCP 协议纯净），http 模式监听 18100。
 
 **Docker（容器化部署，SQLite 单机 / PostgreSQL 生产形态）：**
 
 ```bash
-# 从源码构建镜像
+# 构建镜像
 docker build -t decp-core:latest .
-
-# stdio 模式（MCP 客户端注入 stdin/stdout，如 Claude Code / AgentScope）
-docker run --rm -i -v decp-data:/app/data decp-core:latest
-
-# streamable http 模式（默认 18100）
-docker run --rm -d -p 18100:18100 -e DECP_MCP_TRANSPORT=http decp-core:latest
-
-# docker compose 编排（含 PostgreSQL 生产形态）
-docker compose up -d --build decp-mcp
-DECP_PG_PASSWORD=你的强密码 docker compose --profile postgres up -d --build
 ```
 
-完整部署说明见 [Docker 部署](#docker-部署)。
+构建后按 [Docker 部署](#docker-部署) 章节启动。正式生产运行推荐单条命令（数据持久化，`--name` 固定容器名）：
+
+```bash
+docker run -d --name decp-mcp \
+  -p 18100:18100 \
+  -e DECP_MCP_TRANSPORT=http \
+  -v decp-data:/app/data \
+  decp-core:latest
+```
+
+> ⚠️ **不要用 `--rm` 跑正式服务**：`--rm` 会在容器退出时删除容器与数据，仅适合一次性验证。正式运行请去掉 `--rm` 并挂载数据卷（如上）。
 
 ## 快速开始
 
@@ -100,6 +100,7 @@ Skill 定义存放于 `skills/` 目录（SKILL.md + manifest.json），遵循 **
 | `feedback-collect` | 「录入一条客户反馈」「登记客户反馈」 |
 | `requirement-analysis` | 「收集反馈并分析，生成需求草稿」「生成报告」 |
 | `requirement-query` | 「查看最近的反馈」「这个需求怎么样了」 |
+| `soul`（人格注入） | 不触发；作为数字员工的立场与红线注入 Agent 上下文 |
 
 Skill 层支持两种工具调用后端（`DECP_SKILL_TOOL_BACKEND`）：
 - `direct`（默认）：进程内直调 MCP 工具函数，适合测试/演示/单进程部署
@@ -211,23 +212,41 @@ python -m decp_core.mcp_.main --transport http --port 18100
 
 ## Docker 部署
 
+**1) 构建镜像**（多阶段，非 root，约 78MB）：
+
 ```bash
-# 构建镜像（多阶段，非 root，约 78MB）
 docker build -t decp-core:latest .
+```
+
+**2) 启动服务** — 按传输与数据形态选择：
+
+```bash
+# streamable http 模式（正式生产，推荐）
+# 连接地址 http://localhost:18100/mcp；数据持久化于 decp-data 卷
+docker run -d --name decp-mcp \
+  -p 18100:18100 \
+  -e DECP_MCP_TRANSPORT=http \
+  -v decp-data:/app/data \
+  decp-core:latest
 
 # stdio 模式（MCP 客户端注入 stdin/stdout 连接，如 AgentScope MCPClient）
-docker run --rm -i -v decp-data:/app/data decp-core:latest
+docker run -d --name decp-mcp \
+  -v decp-data:/app/data \
+  decp-core:latest
 
-# streamable http 模式（连接地址 http://localhost:18100/mcp）
-docker run --rm -d -p 18100:18100 \
-  -e DECP_MCP_TRANSPORT=http -v decp-data:/app/data decp-core:latest
-
-# compose：SQLite 单机
+# compose：SQLite 单机（container_name=decp-mcp，含健康检查/重启策略）
 docker compose up -d --build decp-mcp
 
 # compose：PostgreSQL 生产形态
 DECP_PG_PASSWORD=你的强密码 docker compose --profile postgres up -d --build
 ```
+
+> ⚠️ **`--rm` 仅用于一次性验证**，不适合正式服务——容器退出即删除容器与数据。正式运行请用上面的命令（`-d` 后台、`--name` 固定名、`-v decp-data:/app/data` 持久化）。临时验证示例：
+
+> ```bash
+> docker run --rm -i -v decp-data:/app/data decp-core:latest   # stdio 临时验证
+> docker run --rm -d -p 18100:18100 -e DECP_MCP_TRANSPORT=http decp-core:latest  # http 临时验证（不挂卷，数据不持久）
+> ```
 
 容器内关键环境变量：
 
@@ -245,7 +264,7 @@ DECP_PG_PASSWORD=你的强密码 docker compose --profile postgres up -d --build
 - http 模式自动启用健康检查看门狗（`scripts/docker/healthcheck.py`）。
 - 完整部署说明见 [docs/docker-deployment.md](docs/docker-deployment.md)。
 
-容器内使用数字员工验证闭环：
+容器内使用数字员工验证闭环（临时容器，`--rm` 合理）：
 
 ```bash
 # 种子数据 + 数字员工演示（同一容器内执行）
