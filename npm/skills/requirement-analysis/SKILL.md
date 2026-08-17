@@ -28,6 +28,14 @@ DECP 平台提供 `feedback.*` / `requirement.*` / `report.*` / `workspace.*` �
 | `requirement.get` | `requirement_id` | 需求完整信息 |
 | `report.generate_html` | `title`、`customer` | HTML 分析报告本地路径 |
 | `report.generate_excel` | — | Excel 报表（需求清单/反馈明细/聚类）本地路径 |
+| `workspace.create` | `name`、`owner_user_id`、`description` | 创建 workspace，创建者成为 owner，自动生成通行证 |
+| `workspace.join` | `workspace_id`、`user_id` | 申请加入（状态 pending，等待 owner 审批） |
+| `workspace.join_by_passcode` | `workspace_id`、`passcode`、`user_id` | 凭通行证直接加入（凭证式授权，绕过审批） |
+| `workspace.approve_member` | `workspace_id`、`user_id`、`approver` | owner 审批通过成员申请 |
+| `workspace.reject_member` | `workspace_id`、`user_id`、`approver` | owner 拒绝成员申请 |
+| `workspace.list` | — | 本人所属 workspace 列表 |
+| `workspace.get` | `workspace_id`、`user_id` | workspace 详情（passcode 仅 owner 可见） |
+| `workspace.members` | `workspace_id`、`user_id` | 成员列表（仅成员可查） |
 
 > **工具名对照**：在 AgentScope 等外部运行时下，工具对 LLM 暴露的实际名称为 `mcp__decp__*` 前缀 + `.` → `x` 的改写（如 `feedback.submit` → `mcp__decp__feedbackxsubmit`）。上表为业务简化名。**调用前请以当前环境工具列表中的实际名称为准**，勿用简化名直调；若工具列表不含所需工具，先确认 decp MCP server 已挂载。
 
@@ -40,6 +48,10 @@ DECP 按 workspace 隔离数据：feedback/requirement 均归属某一 workspace
   - `workspace.join`（申请后等待 owner 审批）；
   - `workspace.join_by_passcode`（凭工作区**通行证**直接加入，校验通过即批准为 member，无需 owner 审批）。通行证由 owner 创建工作区时自动生成，owner 通过 `workspace.get` 获取后线下分发给加入者——适合 AgentScope 等无法注入调用者身份的平台（通行证不绑定身份，任何持有者凭正确 passcode 即可加入）。
   - workspace 未就绪时先做 `workspace.list` / `workspace.get` / `workspace.members` 确认归属。
+- **成员申请审批（owner 职责）**：他人通过 `workspace.join` 提交的申请处于 `pending` 状态，须由 owner 审批后才能成为正式成员：
+  - 通过 → `workspace.approve_member`（仅 owner 可操作，将成员状态置为 approved）；
+  - 拒绝 → `workspace.reject_member`（仅 owner 可操作，将 pending 申请置为 rejected）。
+  - 可先 `workspace.members` 查看当前成员与待审批申请（状态字段），再决定批准或拒绝。
 - **通行证安全**：passcode 仅 owner 可见（`workspace.get` / `workspace.list` 对非 owner 脱敏），不得向非成员披露。
 - **跨工作区**：一次操作只作用于当前身份所属 workspace；需其他工作区数据时，显式携带目标 `workspace_id`（前提是该身份是该工作区成员）。
 - **数据口径**：返回结果携带 `workspace_id` / `user_id`，可据此确认操作作用域；不确定当前归属时先查 `workspace.list`。
@@ -51,7 +63,7 @@ DECP 按 workspace 隔离数据：feedback/requirement 均归属某一 workspace
 ### 0. 工作区就绪（前置）
 
 执行数据操作前先确认当前身份已加入某 workspace：
-- 调用 `workspace.list` 查看本人归属；若空，调用 `workspace.create`（成为 owner）或加入现有工作区——`workspace.join`（等待 owner 审批）或 `workspace.join_by_passcode`（凭 owner 分发的通行证直接加入）。
+- 调用 `workspace.list` 查看本人归属；若空，调用 `workspace.create`（成为 owner）或加入现有工作区——`workspace.join`（申请后等待 owner 审批，owner 通过 `workspace.approve_member` / `workspace.reject_member` 处理）或 `workspace.join_by_passcode`（凭 owner 分发的通行证直接加入）。
 - 工具返回 `WorkspaceError`（非成员/工作区不存在）时，先处理工作区归属再继续，不得绕过校验。
 - 后续所有数据工具的 `workspace_id` / `user_id` 若不显式携带，将作用于当前默认身份所在工作区。
 

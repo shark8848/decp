@@ -24,6 +24,8 @@
     "workspace.create",
     "workspace.join",
     "workspace.join_by_passcode",
+    "workspace.approve_member",
+    "workspace.reject_member",
     "workspace.list",
     "workspace.get",
     "workspace.members"

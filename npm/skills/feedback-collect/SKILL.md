@@ -14,6 +14,9 @@ description: 客户反馈收集与结构化技能。当维护人员/客服/客�
 |------|---------|---------|
 | `feedback.submit` | `content`（必填）、`channel`（natural_language/excel/ticket/api）、`customer`、`module`、`feedback_type`、`impact`、`source_ref`、`submitted_by` | 反馈 id + 结构化抽取结果（含 `workspace_id`） |
 | `workspace.list` | — | 本人所属 workspace 列表（归属确认） |
+| `workspace.create` | `name`、`owner_user_id` | 创建工作区（无归属时的兜底路径） |
+| `workspace.join` | `workspace_id`、`user_id` | 申请加入工作区 |
+| `workspace.join_by_passcode` | `workspace_id`、`passcode`、`user_id` | 凭通行证直接加入工作区 |
 
 结构化抽取由平台完成，返回字段：
 - `feedback_type`：问题类型（性能/容量/功能/兼容/登录认证/同步/安全）
@@ -25,7 +28,11 @@ description: 客户反馈收集与结构化技能。当维护人员/客服/客�
 
 ## 多工作区隔离（多租户）
 
-DECP 按 workspace 隔离数据：`feedback.submit` 写入的反馈归属当前身份所在 workspace，工具调用时校验成员资格。身份来源：显式参数 `user_id` / `workspace_id` > 调用上下文 > 默认身份。首次使用前可先 `workspace.list` 确认归属；返回 `WorkspaceError`（非成员）时需先创建/加入工作区。`feedback.submit` 返回的 `workspace_id` 用于确认反馈归属作用域。
+DECP 按 workspace 隔离数据：`feedback.submit` 写入的反馈归属当前身份所在 workspace，工具调用时校验成员资格。身份来源：显式参数 `user_id` / `workspace_id` > 调用上下文 > 默认身份。首次使用前可先 `workspace.list` 确认归属；返回 `WorkspaceError`（非成员）时需先创建或加入工作区：
+- 创建 → `workspace.create`（创建者自动成为 owner）；
+- 申请加入 → `workspace.join`（等待 owner 审批）；
+- 凭通行证直接加入 → `workspace.join_by_passcode`（凭 owner 分发的 passcode 直接成为 member，无需审批）。
+`feedback.submit` 返回的 `workspace_id` 用于确认反馈归属作用域。
 
 ## 使用方式
 

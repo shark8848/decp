@@ -14,7 +14,10 @@
     "requirement.find_similar",
     "domain.stats",
     "workspace.list",
-    "workspace.get"
+    "workspace.get",
+    "workspace.create",
+    "workspace.join",
+    "workspace.join_by_passcode"
   ],
   "depends_on_mcp_servers": [
     "decp"

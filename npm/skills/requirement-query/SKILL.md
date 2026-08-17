@@ -19,7 +19,10 @@ description: 需求与反馈查询技能。当用户要求查看、查询、搜�
 | `requirement.find_similar` | `text`、`limit` | 与给定文本相似的历史反馈（查重） |
 | `domain.stats` | — | 数据域统计（feedback/requirement 数量，当前工作区口径） |
 | `workspace.list` | — | 本人所属 workspace 列表 |
-| `workspace.get` | `workspace_id` | workspace 详情 |
+| `workspace.get` | `workspace_id`、`user_id` | workspace 详情 |
+| `workspace.create` | `name`、`owner_user_id` | 创建工作区（无归属时的兜底路径） |
+| `workspace.join` | `workspace_id`、`user_id` | 申请加入工作区 |
+| `workspace.join_by_passcode` | `workspace_id`、`passcode`、`user_id` | 凭通行证直接加入工作区 |
 
 > **工具名对照**：在 AgentScope 等外部运行时下，工具对 LLM 暴露的实际名称为 `mcp__decp__*` 前缀 + `.` → `x` 的改写（如 `feedback.search` → `mcp__decp__feedbackxsearch`）。上表为业务简化名。**调用前请以当前环境工具列表中的实际名称为准**，勿用简化名直调；若工具列表不含所需工具，先确认 decp MCP server 已挂载。
 
@@ -27,7 +30,7 @@ description: 需求与反馈查询技能。当用户要求查看、查询、搜�
 
 ## 多工作区隔离（多租户）
 
-DECP 按 workspace 隔离数据，查询只作用于当前身份所属 workspace。身份来源：显式参数 `user_id` / `workspace_id` > 调用上下文 > 默认身份。查询前可先 `workspace.list` 确认归属；工具返回 `WorkspaceError`（非成员）时先处理归属再查询。返回结果携带 `workspace_id` / `user_id` 可确认作用域。
+DECP 按 workspace 隔离数据，查询只作用于当前身份所属 workspace。身份来源：显式参数 `user_id` / `workspace_id` > 调用上下文 > 默认身份。查询前可先 `workspace.list` 确认归属；工具返回 `WorkspaceError`（非成员）时先处理归属再查询：创建（`workspace.create`）、申请加入（`workspace.join`，等待 owner 审批）、或凭通行证直接加入（`workspace.join_by_passcode`）。返回结果携带 `workspace_id` / `user_id` 可确认作用域。
 
 按用户意图选择查询目标：
 
