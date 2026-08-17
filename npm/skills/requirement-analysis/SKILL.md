@@ -10,7 +10,7 @@ description: 产品需求收集、整理与分析技能。当用户要求收集�
 
 ## 数据域与工具
 
-DECP 平台提供 `feedback.*` / `requirement.*` / `report.*` 三类数据能力，均为 MCP 工具：
+DECP 平台提供 `feedback.*` / `requirement.*` / `report.*` / `workspace.*` 四类能力，均为 MCP 工具：
 
 | 工具 | 入参要点 | 返回内容 |
 |------|---------|---------|
@@ -31,9 +31,25 @@ DECP 平台提供 `feedback.*` / `requirement.*` / `report.*` 三类数据能力
 
 > **工具名对照**：在 AgentScope 等外部运行时下，工具对 LLM 暴露的实际名称为 `mcp__decp__*` 前缀 + `.` → `x` 的改写（如 `feedback.submit` → `mcp__decp__feedbackxsubmit`）。上表为业务简化名。**调用前请以当前环境工具列表中的实际名称为准**，勿用简化名直调；若工具列表不含所需工具，先确认 decp MCP server 已挂载。
 
+## 多工作区隔离（多租户）
+
+DECP 按 workspace 隔离数据：feedback/requirement 均归属某一 workspace，所有数据工具在调用时校验调用者身份与 workspace 成员资格，非成员调用返回 `WorkspaceError`。
+
+- **身份来源**：显式参数 `user_id` / `workspace_id` > 调用上下文（MCP `ctx.meta`）> 默认身份。未传身份时归入默认工作区（`default` / `default_user`，存量单租户行为不变）。
+- **首次使用**：若尚未加入任何 workspace，需先创建（`workspace.create`，创建者自动成为 owner）或申请加入（`workspace.join`，等待 owner 审批）。workspace 未就绪时先做 `workspace.list` / `workspace.get` / `workspace.members` 确认归属。
+- **跨工作区**：一次操作只作用于当前身份所属 workspace；需其他工作区数据时，显式携带目标 `workspace_id`（前提是该身份是该工作区成员）。
+- **数据口径**：返回结果携带 `workspace_id` / `user_id`，可据此确认操作作用域；不确定当前归属时先查 `workspace.list`。
+
 ## 标准流程（对应 DECP 业务闭环：反馈 → 分析 → 审核 → 入库）
 
 按以下顺序执行，不跳步：
+
+### 0. 工作区就绪（前置）
+
+执行数据操作前先确认当前身份已加入某 workspace：
+- 调用 `workspace.list` 查看本人归属；若空，调用 `workspace.create`（成为 owner）或 `workspace.join`（等待审批通过）。
+- 工具返回 `WorkspaceError`（非成员/工作区不存在）时，先处理工作区归属再继续，不得绕过校验。
+- 后续所有数据工具的 `workspace_id` / `user_id` 若不显式携带，将作用于当前默认身份所在工作区。
 
 ### 1. 收集反馈（如有新反馈）
 用户提供反馈原文时，调用 `feedback.submit` 入库并得到结构化结果。参数齐全性：

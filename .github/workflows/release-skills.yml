@@ -1,0 +1,71 @@
+name: release-skills
+
+# 打技能包 zip 并发布为 GitHub Release 资产。
+# 触发：推送形如 v0.2.0 的 tag。
+#
+# 流程：
+#   1. 跑测试（技能目录 + MCP 工具一致性）
+#   2. sync-npm-skills.sh 把源 skills/ 同步到 npm/skills/（保持副本新鲜，差异随 tag 提交）
+#   3. package-skills.sh 生成 skills/decp-skills.zip（校验不含 soul）
+#   4. 上传 zip 为 Release 资产
+#
+# 注意：本 workflow 不推送 npm/PyPI 包；发布包仍由 scripts/publish-*.sh 手动执行。
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:  # 手动触发，便于随时重新打包
+
+permissions:
+  contents: write  # 允许提交同步结果与上传 Release 资产
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: 安装依赖（含测试）
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: 运行测试（技能目录 + MCP 工具一致性）
+        run: |
+          python -m pytest tests/test_skill_catalog.py tests/test_mcp_tools.py -q
+
+      - name: 同步 npm/skills ← skills/
+        run: |
+          bash scripts/sync-npm-skills.sh
+          bash scripts/sync-npm-skills.sh --check
+
+      - name: 提交同步结果（npm/skills 副本更新）
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add npm/skills
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: 同步 npm/skills 至源 skills/（CI 自动）"
+            git push origin "$GITHUB_REF_NAME" --force-with-lease || git push origin HEAD
+          else
+            echo "npm/skills 无差异，跳过提交"
+          fi
+
+      - name: 打包技能 zip
+        run: |
+          bash scripts/package-skills.sh
+          bash scripts/package-skills.sh --check
+
+      - name: 创建 Release 并上传技能包
+        uses: softprops/action-gh-release@v2
+        with:
+          files: skills/decp-skills.zip
+          generate_release_notes: true
