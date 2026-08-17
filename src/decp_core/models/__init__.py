@@ -60,7 +60,12 @@ class User(BaseModel):
 
 
 class Workspace(BaseModel):
-    """产品工作区：一个产品对应一个 workspace，数据按 workspace 隔离。"""
+    """产品工作区：一个产品对应一个 workspace，数据按 workspace 隔离。
+
+    passcode 为工作区通行证：创建时自动生成，持有者可凭通行证直接加入
+    （绕过身份绑定的 owner 审批）。属主不可变——通行证是"凭证式授权"，
+    不绑定调用者身份。非 owner 查询时由 service 层脱敏。
+    """
 
     model_config = ConfigDict(extra="ignore")
 
@@ -68,6 +73,7 @@ class Workspace(BaseModel):
     name: str = Field(min_length=1, description="工作区名称（产品名）")
     owner_user_id: str = Field(min_length=1, description="创建者（owner）")
     description: str = ""
+    passcode: str | None = Field(default=None, description="工作区通行证（仅 owner 可见）")
     created_at: datetime
 
 

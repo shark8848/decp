@@ -163,3 +163,93 @@ async def test_workspace_join_approve_then_access(sqlite_storage):
     assert st1.structured_content["feedback"] == 1
     st2 = await server.call_tool("domain.stats", {"user_id": "alice", "workspace_id": ws2})
     assert st2.structured_content["feedback"] == 1
+
+
+@pytest.mark.asyncio
+async def test_workspace_passcode_create_and_join(sqlite_storage):
+    """创建生成通行证；持有者可凭通行证直通加入（approved，无需 owner 审批）。"""
+    ws_svc = WorkspaceService(sqlite_storage)
+    w = await ws_svc.create("通行证产品", "alice")
+    passcode = w.get("passcode")
+    assert passcode and passcode.startswith("DECP-")
+    assert len(passcode) > 8  # 高熵，防枚举
+
+    # bob 持通行证加入 → 直接 approved
+    m = await ws_svc.join_by_passcode(w["id"], passcode, "bob")
+    assert m["status"] == "approved"
+    assert m["role"] == "member"
+    stored = await sqlite_storage.member_get(w["id"], "bob")
+    assert stored["status"] == "approved"
+    # bob 获得数据访问权
+    await ws_svc.assert_member(w["id"], "bob")
+
+
+@pytest.mark.asyncio
+async def test_workspace_passcode_wrong_rejected(sqlite_storage):
+    """错误通行证被拒绝，不产生成员记录。"""
+    ws_svc = WorkspaceService(sqlite_storage)
+    w = await ws_svc.create("通行证产品2", "alice")
+    with pytest.raises(WorkspaceError):
+        await ws_svc.join_by_passcode(w["id"], "DECP-WRONG-0000-0000", "bob")
+    assert await sqlite_storage.member_get(w["id"], "bob") is None
+    # 空/缺失通行证也被拒
+    with pytest.raises(WorkspaceError):
+        await ws_svc.join_by_passcode(w["id"], "", "bob")
+    # 通行证对不存在的 workspace 无效
+    with pytest.raises(WorkspaceError):
+        await ws_svc.join_by_passcode("ws-nonexist", "DECP-0000-0000-0000", "bob")
+
+
+@pytest.mark.asyncio
+async def test_workspace_passcode_hidden_from_member(sqlite_storage):
+    """passcode 仅 owner 可见；非 owner 查询被脱敏。"""
+    ws_svc = WorkspaceService(sqlite_storage)
+    w = await ws_svc.create("通行证产品3", "alice")
+    passcode = w["passcode"]
+    # owner 可见
+    got = await ws_svc.get(w["id"], "alice")
+    assert got["passcode"] == passcode
+    assert any(x["passcode"] == passcode for x in await ws_svc.list("alice"))
+    # bob 凭通行证加入后，详情/列表均看不到 passcode
+    await ws_svc.join_by_passcode(w["id"], passcode, "bob")
+    got_bob = await ws_svc.get(w["id"], "bob")
+    assert "passcode" not in got_bob
+    bob_list = [x for x in await ws_svc.list("bob") if x["id"] == w["id"]]
+    assert bob_list and "passcode" not in bob_list[0]
+
+
+@pytest.mark.asyncio
+async def test_workspace_passcode_via_mcp(sqlite_storage):
+    """MCP 层：创建返回通行证 → 另一用户凭通行证直通加入 → 获得数据访问权。"""
+    server = MCPServer("decp", version="0.1.0")
+    register_all_tools(server, sqlite_storage, str(sqlite_storage._path.parent / "reports"))
+
+    r = await server.call_tool("workspace.create", {"name": "MCP 通行证产品", "user_id": "alice"})
+    ws_id = r.structured_content["workspace"]["id"]
+    passcode = r.structured_content["workspace"]["passcode"]
+    assert passcode
+
+    # bob 无通行证时加入失败
+    denied = await server.call_tool("workspace.join_by_passcode", {
+        "workspace_id": ws_id, "passcode": "DECP-WRONG-0000-0000", "user_id": "bob",
+    })
+    assert "error" in denied.structured_content
+    assert "通行证" in denied.structured_content["error"]
+
+    # bob 凭正确通行证加入 → approved，可直接写
+    ok = await server.call_tool("workspace.join_by_passcode", {
+        "workspace_id": ws_id, "passcode": passcode, "user_id": "bob",
+    })
+    assert ok.structured_content["ok"] is True
+    assert ok.structured_content["status"] == "approved"
+    fb = await server.call_tool("feedback.submit", {
+        "content": "bob 凭通行证加入后的写入", "user_id": "bob", "workspace_id": ws_id,
+    })
+    assert fb.structured_content["ok"] is True
+
+    # bob 通过 workspace.get 查看详情，passcode 被脱敏
+    g = await server.call_tool("workspace.get", {"workspace_id": ws_id, "user_id": "bob"})
+    assert "passcode" not in g.structured_content["workspace"]
+    # alice 是 owner，能看到
+    g2 = await server.call_tool("workspace.get", {"workspace_id": ws_id, "user_id": "alice"})
+    assert g2.structured_content["workspace"]["passcode"] == passcode

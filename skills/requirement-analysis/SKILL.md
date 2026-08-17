@@ -36,7 +36,11 @@ DECP 平台提供 `feedback.*` / `requirement.*` / `report.*` / `workspace.*` �
 DECP 按 workspace 隔离数据：feedback/requirement 均归属某一 workspace，所有数据工具在调用时校验调用者身份与 workspace 成员资格，非成员调用返回 `WorkspaceError`。
 
 - **身份来源**：显式参数 `user_id` / `workspace_id` > 调用上下文（MCP `ctx.meta`）> 默认身份。未传身份时归入默认工作区（`default` / `default_user`，存量单租户行为不变）。
-- **首次使用**：若尚未加入任何 workspace，需先创建（`workspace.create`，创建者自动成为 owner）或申请加入（`workspace.join`，等待 owner 审批）。workspace 未就绪时先做 `workspace.list` / `workspace.get` / `workspace.members` 确认归属。
+- **首次使用**：若尚未加入任何 workspace，需先创建（`workspace.create`，创建者自动成为 owner）或申请加入。加入方式二选一：
+  - `workspace.join`（申请后等待 owner 审批）；
+  - `workspace.join_by_passcode`（凭工作区**通行证**直接加入，校验通过即批准为 member，无需 owner 审批）。通行证由 owner 创建工作区时自动生成，owner 通过 `workspace.get` 获取后线下分发给加入者——适合 AgentScope 等无法注入调用者身份的平台（通行证不绑定身份，任何持有者凭正确 passcode 即可加入）。
+  - workspace 未就绪时先做 `workspace.list` / `workspace.get` / `workspace.members` 确认归属。
+- **通行证安全**：passcode 仅 owner 可见（`workspace.get` / `workspace.list` 对非 owner 脱敏），不得向非成员披露。
 - **跨工作区**：一次操作只作用于当前身份所属 workspace；需其他工作区数据时，显式携带目标 `workspace_id`（前提是该身份是该工作区成员）。
 - **数据口径**：返回结果携带 `workspace_id` / `user_id`，可据此确认操作作用域；不确定当前归属时先查 `workspace.list`。
 
@@ -47,7 +51,7 @@ DECP 按 workspace 隔离数据：feedback/requirement 均归属某一 workspace
 ### 0. 工作区就绪（前置）
 
 执行数据操作前先确认当前身份已加入某 workspace：
-- 调用 `workspace.list` 查看本人归属；若空，调用 `workspace.create`（成为 owner）或 `workspace.join`（等待审批通过）。
+- 调用 `workspace.list` 查看本人归属；若空，调用 `workspace.create`（成为 owner）或加入现有工作区——`workspace.join`（等待 owner 审批）或 `workspace.join_by_passcode`（凭 owner 分发的通行证直接加入）。
 - 工具返回 `WorkspaceError`（非成员/工作区不存在）时，先处理工作区归属再继续，不得绕过校验。
 - 后续所有数据工具的 `workspace_id` / `user_id` 若不显式携带，将作用于当前默认身份所在工作区。
 

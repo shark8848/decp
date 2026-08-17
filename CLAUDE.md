@@ -61,7 +61,7 @@ src/decp_core/
   report/                  # ReportService：HTML（jinja2）+ Excel（openpyxl）
   mcp_/
     main.py                # MCP server 入口（stdio/http）
-    tools.py               # DecpTools：22 个工具注册（含 workspace.* 多租户）
+    tools.py               # DecpTools：23 个工具注册（含 workspace.* 多租户）
     context_injection.py   # 身份解析：ctx meta / 显式参数 → (user_id, workspace_id)
     utils.py               # tool_result / error_result（CallToolResult 构造）
   agent/
@@ -90,7 +90,7 @@ scripts/                   # 启动脚本
 7. **校验并提交正式需求** — `requirement.create`：Schema 校验 + 版本化入库 + 审批记录。
 8. **归档/恢复（可选）** — `requirement.archive` / `restore`：已审核完结需求软归档移出活跃视图，默认查询过滤、可恢复。
 
-## 5. MCP 工具清单（22 个）
+## 5. MCP 工具清单（23 个）
 
 | 数据域 | 工具 | 说明 |
 | --- | --- | --- |
@@ -107,12 +107,13 @@ scripts/                   # 启动脚本
 | domain | `domain.stats` | 数据域统计 |
 | workspace | `workspace.create` | 创建产品 workspace（创建者为 owner） |
 | workspace | `workspace.join` | 申请加入（pending，等 owner 审批） |
+| workspace | `workspace.join_by_passcode` | 凭通行证直接加入（校验通过即批准为 member） |
 | workspace | `workspace.approve_member` / `reject_member` | owner 审批 / 拒绝加入 |
 | workspace | `workspace.list` / `get` / `members` | 我的 workspace / 详情 / 成员列表 |
 
 **工具返回约定**：统一返回 `mcp.types.CallToolResult`，含文本摘要（content）与结构化内容（structured_content）；`MCPServer.convert_result` 对 CallToolResult 原样透传，MCP client 与进程内直调行为一致。
 
-**工具名与实现统一**：`DecpTools.TOOL_BINDINGS` 定义 22 个标准工具名 → 方法映射，`register_all_tools`（MCP 层）与 `DirectBackend`（Skill direct 模式）共用，保证跨模式命名一致。
+**工具名与实现统一**：`DecpTools.TOOL_BINDINGS` 定义 23 个标准工具名 → 方法映射，`register_all_tools`（MCP 层）与 `DirectBackend`（Skill direct 模式）共用，保证跨模式命名一致。
 
 ### 多工作区隔离（multi-tenancy）
 

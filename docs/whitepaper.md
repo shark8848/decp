@@ -41,7 +41,7 @@ DECP 按设计文档实现产品需求收集、整理与分析场景的**四层�
 │  · 工具调用双模式：direct（进程内）/ client（跨进程）│
 ├─────────────────────────────────────────────┤
 │ MCP 工具层（decp_core.mcp_）                   │
-│  · 22 个 tools：feedback.* / requirement.*     │
+│  · 23 个 tools：feedback.* / requirement.*     │
 │    / report.* / domain.* / workspace.*        │
 │  · 传输：stdio（默认）/ streamable http         │
 ├─────────────────────────────────────────────┤
@@ -146,7 +146,7 @@ DECP 的技能是 **目录形态**：`skills/{skill-name}/` 下含 `SKILL.md`（
 2. `MCPClient` 连接 DECP MCP server（stdio 或 HTTP）；
 3. Agent 对话中按技能 description 自动触发。
 
-**已验证**：4 个技能全部加载（含 `soul` 人格注入），22 个 MCP 工具可调，数据落库。
+**已验证**：4 个技能全部加载（含 `soul` 人格注入），23 个 MCP 工具可调，数据落库。
 
 ### 7.2 deerflow
 
@@ -197,7 +197,7 @@ DECP 的技能是 **目录形态**：`skills/{skill-name}/` 下含 `SKILL.md`（
 ### 7.7 通用集成要点
 
 - **技能与 MCP 分离**：技能定义业务编排，MCP server 提供数据操作。平台不支持技能目录时（如 Codex），可退化为「AGENTS.md 描述 + MCP 工具」组合。
-- **统一验证**：接入后确认 MCP server 返回 22 个工具（`tools/list`）、`domain.stats` 可调用、`feedback.submit` 能落库，即代表技能所需的工具底座就绪。
+- **统一验证**：接入后确认 MCP server 返回 23 个工具（`tools/list`）、`domain.stats` 可调用、`feedback.submit` 能落库，即代表技能所需的工具底座就绪。
 - **soul 注入**：`soul` 技能无工具依赖、不参与意图路由，作为数字员工的人格设定注入 Agent 上下文；流程技能负责触发，soul 负责立场与红线（人工审批不可绕过 / 数据主权 / Prompt Injection 防护）。Claude Code 可将 `soul/SKILL.md` 放入项目技能目录随 Agent 加载；Codex 将其要点并入 `AGENTS.md`。
 
 ## 8. 许可

@@ -106,7 +106,11 @@ class ORMStorage(StorageBackend):
         )
 
     async def _ensure_workspace_columns(self) -> None:
-        """幂等补齐 feedback / requirement 表 workspace_id 列（旧库多租户迁移）。"""
+        """幂等补齐多租户相关列（旧库迁移）。
+
+        - feedback / requirement 表 workspace_id 列（存量单租户 → 多租户）
+        - workspace 表 passcode 列（通行证加入机制）
+        """
         await self._ensure_columns(
             "feedback",
             [("workspace_id", "VARCHAR NOT NULL DEFAULT 'default'")],
@@ -114,6 +118,10 @@ class ORMStorage(StorageBackend):
         await self._ensure_columns(
             "requirement",
             [("workspace_id", "VARCHAR NOT NULL DEFAULT 'default'")],
+        )
+        await self._ensure_columns(
+            "workspace",
+            [("passcode", "VARCHAR")],
         )
 
     async def _ensure_columns(self, table: str, specs: list[tuple[str, str]]) -> None:
@@ -179,6 +187,7 @@ class ORMStorage(StorageBackend):
                 "name": row.name,
                 "owner_user_id": row.owner_user_id,
                 "description": row.description,
+                "passcode": row.passcode,
                 "created_at": row.created_at,
             }
 
@@ -200,6 +209,7 @@ class ORMStorage(StorageBackend):
                     "name": r.name,
                     "owner_user_id": r.owner_user_id,
                     "description": r.description,
+                    "passcode": r.passcode,
                     "created_at": r.created_at,
                 }
                 for r in rows

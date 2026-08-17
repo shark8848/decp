@@ -34,7 +34,7 @@ Agent Runtime（成熟系统）
    │ 读取 SKILL.md 理解技能流程
    ▼
 DECP MCP server（stdio / streamable http）
-   │ 22 个工具（feedback.* / requirement.* / report.* / domain.* / workspace.*）
+   │ 23 个工具（feedback.* / requirement.* / report.* / domain.* / workspace.*）
    ▼
 DECP 数据域（feedback / requirement / app_meta，SQLite / PostgreSQL）
 ```
@@ -78,4 +78,4 @@ async def main():
 asyncio.run(main())
 ```
 
-AgentScope 的 skill 调度模型与 Claude Code 同构：`LocalSkillLoader` 扫描目录解析 SKILL.md，LLM 通过内置 `Skill` 查看器工具按名读取技能正文（知识包），随后调用 DECP MCP 的 22 个工具完成数据操作。详见 [docs/agentscope-integration.md](../docs/agentscope-integration.md)。
+AgentScope 的 skill 调度模型与 Claude Code 同构：`LocalSkillLoader` 扫描目录解析 SKILL.md，LLM 通过内置 `Skill` 查看器工具按名读取技能正文（知识包），随后调用 DECP MCP 的 23 个工具完成数据操作。详见 [docs/agentscope-integration.md](../docs/agentscope-integration.md)。

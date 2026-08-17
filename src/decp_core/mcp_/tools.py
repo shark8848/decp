@@ -46,6 +46,7 @@ class DecpTools:
         "domain.stats": "domain_stats",
         "workspace.create": "workspace_create",
         "workspace.join": "workspace_join",
+        "workspace.join_by_passcode": "workspace_join_by_passcode",
         "workspace.approve_member": "workspace_approve_member",
         "workspace.reject_member": "workspace_reject_member",
         "workspace.list": "workspace_list",
@@ -414,6 +415,25 @@ class DecpTools:
         except Exception as e:  # noqa: BLE001
             return utils.error_result(f"申请加入失败: {e}")
 
+    async def workspace_join_by_passcode(self, workspace_id: str, passcode: str,
+                                         ctx: Context | None = None,
+                                         user_id: str | None = None) -> dict:
+        """凭工作区通行证直接加入（凭证式授权，绕过 owner 审批）。
+
+        通行证不绑定调用者身份：任何持有者凭正确 passcode 即可加入为已批准 member。
+        通行证由 owner 通过 workspace.get 获取；校验失败返回错误。
+        """
+        try:
+            uid, _ = await self._identity(ctx, user_id)
+            m = await self.workspace.join_by_passcode(workspace_id, passcode, uid)
+            return utils.tool_result({"ok": True, "workspace_id": workspace_id,
+                                      "user_id": uid, "status": m["status"],
+                                      "joined_via": "passcode"})
+        except WorkspaceError as e:
+            return utils.error_result(f"凭通行证加入失败: {e}")
+        except Exception as e:  # noqa: BLE001
+            return utils.error_result(f"凭通行证加入失败: {e}")
+
     async def workspace_approve_member(self, workspace_id: str, target_user_id: str,
                                        ctx: Context | None = None,
                                        user_id: str | None = None) -> dict:
@@ -514,11 +534,12 @@ _TOOL_DESCS: dict[str, str] = {
     "report.generate_html": "生成 HTML 分析报告，返回本地可下载路径",
     "report.generate_excel": "生成 Excel 报表（需求清单/反馈明细/聚类），返回本地可下载路径",
     "domain.stats": "数据域统计：feedback/requirement 数量与后端信息",
-    "workspace.create": "创建产品 workspace，创建者自动成为 owner",
+    "workspace.create": "创建产品 workspace，创建者自动成为 owner，自动生成工作区通行证（passcode，仅 owner 可见）",
     "workspace.join": "申请加入 workspace（pending，等待 owner 审批）",
+    "workspace.join_by_passcode": "凭工作区通行证直接加入（校验通过即批准为 member，无需 owner 审批；通行证由 owner 通过 workspace.get 获取）",
     "workspace.approve_member": "owner 审批通过成员加入申请",
     "workspace.reject_member": "owner 拒绝成员加入申请",
     "workspace.list": "我的 workspace 列表（本人创建或已批准加入的）",
-    "workspace.get": "获取 workspace 详情（仅本人 workspace 可查）",
+    "workspace.get": "获取 workspace 详情（仅本人 workspace 可查，passcode 仅 owner 可见）",
     "workspace.members": "成员列表（仅本人 workspace 可查）",
 }

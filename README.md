@@ -71,7 +71,7 @@ decp-demo --instruction "生成报告"
 | 层 | 模块 | 说明 |
 | --- | --- | --- |
 | 数字员工 | `decp_core.agent` | Skill 层：`feedback_collect`（录入）、`requirement_analysis`（需求收集-整理-分析闭环）、`query`（查询）；`SkillCatalog` 扫描 `skills/` 定义。意图路由 → Skill → MCP 工具 |
-| MCP 工具层 | `decp_core.mcp_` | 22 个工具，按 `feedback.*` / `requirement.*` / `report.*` / `domain.*` / `workspace.*` 组织，Gateway 语义：权限检查（多工作区隔离）· 字段过滤 · 出站控制 |
+| MCP 工具层 | `decp_core.mcp_` | 23 个工具，按 `feedback.*` / `requirement.*` / `report.*` / `domain.*` / `workspace.*` 组织，Gateway 语义：权限检查（多工作区隔离）· 字段过滤 · 出站控制 |
 | 企业数据层 | `decp_core.services` | 业务逻辑：结构化抽取、去重（文本相似度）、聚类、影响分析、优先级建议、来源校验、需求草稿、审核入库 |
 | 存储层 | `decp_core.storage` | 统一 `StorageBackend` 接口；SQLite / PostgreSQL 双实现；版本与 hash 审计（app_meta） |
 | 报告 | `decp_core.report` | HTML 分析报告 + Excel 报表（需求清单 / 反馈明细 / 聚类） |
@@ -332,7 +332,7 @@ python -c "from decp_core.agent.skill_catalog import SkillCatalog; s=SkillCatalo
 Agent Runtime（成熟系统）
    │ 读取 SKILL.md 理解技能流程（Claude Code / AgentScope 均原生支持）
    ▼
-DECP MCP server（stdio / streamable http，22 个工具）
+DECP MCP server（stdio / streamable http，23 个工具）
    ▼
 DECP 数据域（feedback / requirement / app_meta，SQLite / PostgreSQL）
 ```

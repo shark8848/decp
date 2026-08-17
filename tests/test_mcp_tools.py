@@ -1,4 +1,4 @@
-"""MCP 工具层测试：15 个工具注册与调用、结构化返回。"""
+"""MCP 工具层测试：23 个工具注册与调用、结构化返回。"""
 from __future__ import annotations
 
 import pytest
@@ -13,7 +13,7 @@ async def test_register_all_tools(sqlite_storage):
     tools = register_all_tools(server, sqlite_storage, str(sqlite_storage._path.parent / "reports"))
     listed = await server.list_tools()
     names = [t.name for t in listed]
-    assert len(names) == len(DecpTools.TOOL_BINDINGS) == 22
+    assert len(names) == len(DecpTools.TOOL_BINDINGS) == 23
     expected = {
         "feedback.submit", "feedback.search", "feedback.get",
         "requirement.analyze", "requirement.generate_draft", "requirement.create",
@@ -21,9 +21,9 @@ async def test_register_all_tools(sqlite_storage):
         "requirement.find_similar", "requirement.search",
         "requirement.get", "report.generate_html", "report.generate_excel",
         "domain.stats",
-        "workspace.create", "workspace.join", "workspace.approve_member",
-        "workspace.reject_member", "workspace.list", "workspace.get",
-        "workspace.members",
+        "workspace.create", "workspace.join", "workspace.join_by_passcode",
+        "workspace.approve_member", "workspace.reject_member", "workspace.list",
+        "workspace.get", "workspace.members",
     }
     assert set(names) == expected
     assert tools.tool_callable("feedback.submit") is not None
@@ -31,6 +31,7 @@ async def test_register_all_tools(sqlite_storage):
     assert tools.tool_callable("requirement.restore") is not None
     assert tools.tool_callable("workspace.create") is not None
     assert tools.tool_callable("workspace.approve_member") is not None
+    assert tools.tool_callable("workspace.join_by_passcode") is not None
 
 
 @pytest.mark.asyncio

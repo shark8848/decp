@@ -23,6 +23,7 @@
     "report.generate_excel",
     "workspace.create",
     "workspace.join",
+    "workspace.join_by_passcode",
     "workspace.list",
     "workspace.get",
     "workspace.members"

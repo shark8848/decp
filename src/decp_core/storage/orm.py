@@ -108,6 +108,7 @@ class WorkspaceOrm(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     owner_user_id: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[str] = mapped_column(String, nullable=False, default="")
+    passcode: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     __table_args__ = (Index("idx_workspace_owner", "owner_user_id"),)

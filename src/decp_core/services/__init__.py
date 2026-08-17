@@ -9,6 +9,7 @@ Service 封装数据域的业务逻辑，供 MCP 路由层调用并封装为 too
 from __future__ import annotations
 
 import re
+import secrets
 from collections import Counter, defaultdict
 from typing import Any
 
@@ -638,8 +639,17 @@ class WorkspaceService:
         """轻量用户注册：首次出现自动建档（get_or_create）。"""
         await self._storage.user_upsert(user_id)
 
+    @staticmethod
+    def _gen_passcode() -> str:
+        """生成工作区通行证：DECP-XXXX-XXXX-XXXX（密码学安全，防暴力枚举）。
+
+        用 secrets 生成 12 字节随机数 → 24 位 hex 大写，按 4 位分组便于人工输入。
+        """
+        raw = secrets.token_hex(12).upper()  # 24 字符 hex
+        return "DECP-" + "-".join(raw[i : i + 4] for i in range(0, 24, 4))
+
     async def create(self, name: str, owner_user_id: str, description: str = "") -> dict[str, Any]:
-        """创建 workspace，owner 自动成为已批准成员。"""
+        """创建 workspace，owner 自动成为已批准成员，自动生成通行证。"""
         if not name or not name.strip():
             raise WorkspaceError("工作区名称不能为空")
         await self._ensure_user(owner_user_id)
@@ -650,6 +660,7 @@ class WorkspaceService:
             "name": name.strip(),
             "owner_user_id": owner_user_id,
             "description": description,
+            "passcode": self._gen_passcode(),
             "created_at": now,
         })
         await self._storage.member_upsert(wid, owner_user_id, role="owner", status="approved")
@@ -674,6 +685,27 @@ class WorkspaceService:
         if cur and cur["status"] == "approved":
             return cur
         return await self._storage.member_upsert(workspace_id, user_id, role="member", status="pending")
+
+    async def join_by_passcode(
+        self, workspace_id: str, passcode: str, user_id: str,
+    ) -> dict[str, Any]:
+        """凭通行证直接加入 workspace（凭证式授权，绕过 owner 审批）。
+
+        通行证不绑定调用者身份：任何持有者凭正确 passcode 即可加入为已批准 member，
+        调用者身份由 user_id 标注（AgentScope 等无法注入用户身份的场景即 default_user）。
+        校验失败抛 WorkspaceError。
+        """
+        ws = await self._storage.workspace_get(workspace_id)
+        if ws is None:
+            raise WorkspaceError(f"工作区不存在: {workspace_id}")
+        stored = ws.get("passcode")
+        if not stored or not secrets.compare_digest(str(stored), str(passcode).strip()):
+            raise WorkspaceError("通行证错误或已失效，无法加入工作区")
+        await self._ensure_user(user_id)
+        # owner 持证加入仍为 owner；其余直通 approved member
+        if user_id == ws["owner_user_id"]:
+            return await self._storage.member_upsert(workspace_id, user_id, role="owner", status="approved")
+        return await self._storage.member_upsert(workspace_id, user_id, role="member", status="approved")
 
     async def approve_member(self, workspace_id: str, user_id: str, approver: str) -> dict[str, Any]:
         """owner 审批通过成员加入。仅 owner 可操作，他人加入需审批。"""
@@ -704,19 +736,31 @@ class WorkspaceService:
         return await self._storage.member_upsert(workspace_id, user_id, role="member", status="rejected")
 
     async def list(self, user_id: str) -> list[dict[str, Any]]:
-        """我的 workspace 列表（本人创建或已批准加入的）。"""
+        """我的 workspace 列表（本人创建或已批准加入的）。passcode 仅 owner 可见。"""
         await self._ensure_user(user_id)
-        return await self._storage.workspace_list_by_user(user_id)
+        workspaces = await self._storage.workspace_list_by_user(user_id)
+        return [self._mask_passcode(ws, user_id) for ws in workspaces]
 
     async def get(self, workspace_id: str, user_id: str) -> dict[str, Any]:
-        """workspace 详情。仅本人 workspace（创建者或已批准成员）可查。"""
+        """workspace 详情。仅本人 workspace（创建者或已批准成员）可查。
+
+        passcode 是敏感凭证：非 owner 查询时剥离，仅 owner 可见（用于传播通行证）。
+        """
         ws = await self._storage.workspace_get(workspace_id)
         if ws is None:
             raise WorkspaceError(f"工作区不存在: {workspace_id}")
         member = await self._storage.member_get(workspace_id, user_id)
         if member is None or member["status"] != "approved":
             raise WorkspaceError(f"用户 {user_id} 不是工作区 {workspace_id} 的成员，无权查看")
-        return ws
+        return self._mask_passcode(ws, user_id)
+
+    @staticmethod
+    def _mask_passcode(ws: dict[str, Any], user_id: str) -> dict[str, Any]:
+        """非 owner 查询时剥离 passcode，防成员扩散通行证。"""
+        out = dict(ws)
+        if out.get("owner_user_id") != user_id:
+            out.pop("passcode", None)
+        return out
 
     async def members(self, workspace_id: str, user_id: str) -> list[dict[str, Any]]:
         """成员列表。仅本人 workspace 可查。"""

@@ -4,7 +4,7 @@
 
 ## 1. 背景
 
-DECP（联邦数字员工协作平台）以 **MCP Workspace** 形式对外提供需求数据能力（22 个工具，含 `workspace.*` 多工作区隔离），并将业务流程沉淀为技能定义（SKILL.md）。AgentScope 是阿里开源的智能体框架，其技能规范与 Claude Code 同源：
+DECP（联邦数字员工协作平台）以 **MCP Workspace** 形式对外提供需求数据能力（23 个工具，含 `workspace.*` 多工作区隔离），并将业务流程沉淀为技能定义（SKILL.md）。AgentScope 是阿里开源的智能体框架，其技能规范与 Claude Code 同源：
 
 - **SKILL.md frontmatter**：`name`（必填）、`description`（必填，LLM 调度依据）、`version`（规范字段）。
 - **SKILL.md 正文**：给 LLM 的知识包（数据域、流程、参数约束、行为边界）。
@@ -73,7 +73,7 @@ async def main():
     )
     await client.connect()
     try:
-        tools = await client.list_tools()          # 22 个 DECP 工具
+        tools = await client.list_tools()          # 23 个 DECP 工具
         tool = await client.get_tool("feedback.submit")
         result = await tool.call(
             content="客户D：权限模块批量授权时偶发失败，管理员操作被中断",
@@ -89,7 +89,7 @@ asyncio.run(main())
 
 **实测结果（AgentScope 2.0.6 + DECP）**：
 
-- `list_tools()` 返回 22 个工具，LLM 可见名为 `mcp__decp__feedbackxsubmit` 等（`.` → `x`，AgentScope 对 LLM 工具名的字符约束）；原始名 `feedback.submit` 保留在 `_tool.name` 用于 server 端调用。
+- `list_tools()` 返回 23 个工具，LLM 可见名为 `mcp__decp__feedbackxsubmit` 等（`.` → `x`，AgentScope 对 LLM 工具名的字符约束）；原始名 `feedback.submit` 保留在 `_tool.name` 用于 server 端调用。
 - `tool.call(...)` 真实写入 feedback 数据域，返回 `{"ok": true, "id": "fb-xxx", "structured": {...}}`，数据已落库（SQLite 验证通过）。
 - Streamable HTTP 同理：`HttpMCPConfig(url="http://localhost:18100/mcp")`，`is_stateful` 可设 False（无状态，无需 connect/close）。
 
@@ -119,13 +119,13 @@ asyncio.run(main())
   "decp": {
     "name": "decp",
     "url": "http://10.88.155.31:18100/mcp",
-    "description": "DECP MCP 服务器（提供 feedback.submit / feedback.search / feedback.get、requirement.analyze / generate_draft / create / review / archive / restore / find_similar / search / get、report.generate_html / generate_excel、domain.stats、workspace.create / join / approve_member / reject_member / list / get / members 共 22 个工具）",
+    "description": "DECP MCP 服务器（提供 feedback.submit / feedback.search / feedback.get、requirement.analyze / generate_draft / create / review / archive / restore / find_similar / search / get、report.generate_html / generate_excel、domain.stats、workspace.create / join / join_by_passcode / approve_member / reject_member / list / get / members 共 23 个工具）",
     "transport": "streamable_http"
   }
 }
 ```
 
-> `transport` 选 Streamable HTTP 类（平台支持 `streamable_http` / `http`），**不要选 `sse`**（DECP 不开 SSE 端点）。server 名必须与技能 manifest 的 `depends_on_mcp_servers: ["decp"]` 一致，工具名才会以 `mcp__decp__*` 前缀暴露。**确保平台网络可访问 `10.88.155.31:18100`**（已从 DECP 侧冒烟验证该端点在线、22 个工具齐全，但需平台侧确认可达，如走内网/专线）。
+> `transport` 选 Streamable HTTP 类（平台支持 `streamable_http` / `http`），**不要选 `sse`**（DECP 不开 SSE 端点）。server 名必须与技能 manifest 的 `depends_on_mcp_servers: ["decp"]` 一致，工具名才会以 `mcp__decp__*` 前缀暴露。**确保平台网络可访问 `10.88.155.31:18100`**（已从 DECP 侧冒烟验证该端点在线、23 个工具齐全，但需平台侧确认可达，如走内网/专线）。
 
 **③ 工具名对照（AgentScope 平台下）**
 
@@ -149,7 +149,7 @@ AgentScope 对 LLM 暴露的工具名为 `mcp__decp__` 前缀 + `.`→`x` 改写
 AgentScope 智能体（LLM 意图理解）
    │  Skill 工具按名读取 DECP 技能正文（知识包）
    ▼
-DECP MCP 工具（22 个：feedback.* / requirement.* / report.* / domain.* / workspace.*）
+DECP MCP 工具（23 个：feedback.* / requirement.* / report.* / domain.* / workspace.*）
    │
    ▼
 DECP 数据域（SQLite / PostgreSQL）
@@ -178,9 +178,9 @@ DECP 技能正文内含硬性行为约束，AgentScope 加载后应原样遵循�
 | 验证项 | 状态 |
 | --- | --- |
 | `LocalSkillLoader` 成功列出 4 个技能（含 `soul`，name/description/markdown 就位） | ✅ 已实测（2.0.6） |
-| `MCPClient` 经 stdio 连接 DECP server，`list_tools()` 返回 22 个工具 | ✅ 已实测 |
+| `MCPClient` 经 stdio 连接 DECP server，`list_tools()` 返回 23 个工具 | ✅ 已实测 |
 | `get_tool("feedback.submit")` + `tool.call(...)` 真实写入 feedback 数据域并落库 | ✅ 已实测 |
-| 远程 `http://10.88.155.31:18100/mcp` initialize 握手 + `tools/list` 返回 22 个工具 | ✅ 已实测（DECP 侧冒烟） |
+| 远程 `http://10.88.155.31:18100/mcp` initialize 握手 + `tools/list` 返回 23 个工具 | ✅ 已实测（DECP 侧冒烟） |
 | 异地平台：技能 zip 上传 + 平台侧配置远程 MCP URL 后 LLM 端到端路由 | 🔲 需平台侧确认网络可达 + 端到端验证 |
 | `requirement.review` 审核链路有产品经理身份记录 | ✅ 平台既有能力（MCP 工具层） |
 
@@ -192,6 +192,6 @@ DECP 技能正文内含硬性行为约束，AgentScope 加载后应原样遵循�
 | `skills/{name}/SKILL.md` | 技能定义（name/version/description + 正文知识包） |
 | `skills/{name}/manifest.json` | 发布清单（依赖工具 / MCP server） |
 | `skills/README.md` | 技能目录总览与多运行时兼容说明 |
-| `src/decp_core/mcp_/tools.py` | 22 个 MCP 工具实现 |
+| `src/decp_core/mcp_/tools.py` | 23 个 MCP 工具实现 |
 | `src/decp_core/mcp_/main.py` | MCP server 入口（stdio / HTTP） |
 | `docs/product-requirement-analysis-scenario_Version2.svg` | 业务流程与治理约束设计文档 |
