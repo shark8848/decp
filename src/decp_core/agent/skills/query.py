@@ -27,7 +27,7 @@ class QuerySkill(BaseSkill):
         want_reqs = params.get("requirements") or params.get("status") or params.get("priority") or params.get("list_requirements")
         want_fbs = params.get("feedbacks") or params.get("customer") or params.get("list_feedbacks")
 
-        # 查询需求
+        # 查询需求（include_archived 透传，含已归档需求）
         if want_reqs:
             result["requirements"] = await self._call(
                 "requirement.search",
@@ -35,6 +35,7 @@ class QuerySkill(BaseSkill):
                 priority=params.get("priority"),
                 module=params.get("module"),
                 limit=params.get("limit", 50),
+                include_archived=params.get("include_archived", False),
             )
 
         # 查询反馈
@@ -48,7 +49,11 @@ class QuerySkill(BaseSkill):
 
         # 未指定查询目标时默认返回需求+反馈列表（产品经理/收集人员常用）
         if not (want_reqs or want_fbs) and not params.get("text") and not params.get("requirement_id"):
-            result["requirements"] = await self._call("requirement.search", limit=params.get("limit", 50))
+            result["requirements"] = await self._call(
+                "requirement.search",
+                limit=params.get("limit", 50),
+                include_archived=params.get("include_archived", False),
+            )
             result["feedbacks"] = await self._call("feedback.search", limit=params.get("limit", 50))
 
         # 相似反馈查重

@@ -120,7 +120,7 @@ curl -s -X POST http://localhost:18100/mcp \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{}}}'
 # 预期返回 result.capabilities（tools/list 等）
 
-# 列出 13 个工具
+# 列出 22 个工具
 curl -s -X POST http://localhost:18100/mcp \
   -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'

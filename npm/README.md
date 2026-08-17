@@ -35,7 +35,7 @@ npx decp-mcp
 npx decp-mcp --transport http --port 18100
 ```
 
-MCP server 提供 **13 个工具**：`feedback.*`（提交/查询）、`requirement.*`（分析/草稿/审核/入库）、`report.*`（报告）、`domain.stats`。
+MCP server 提供 **22 个工具**：`feedback.*`（提交/查询）、`requirement.*`（分析/草稿/审核/归档/入库）、`report.*`（报告）、`domain.stats`、`workspace.*`（多工作区隔离：创建 / 加入 / 审批 / 列表）。
 
 ### 3. 加载技能
 

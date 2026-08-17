@@ -40,6 +40,8 @@ logging = ["ikc-log-center>=1.4.10"]
 [project.scripts]
 decp-mcp = "decp_core.mcp_.main:run_stdio"
 decp-demo = "decp_core.cli.demo:main"
+decp-archive = "decp_core.cli.archive:main"
+decp-workspace = "decp_core.cli.workspace:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

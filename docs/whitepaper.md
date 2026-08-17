@@ -41,12 +41,13 @@ DECP 按设计文档实现产品需求收集、整理与分析场景的**四层�
 │  · 工具调用双模式：direct（进程内）/ client（跨进程）│
 ├─────────────────────────────────────────────┤
 │ MCP 工具层（decp_core.mcp_）                   │
-│  · 13 个 tools：feedback.* / requirement.*     │
-│    / report.* / domain.*                      │
+│  · 22 个 tools：feedback.* / requirement.*     │
+│    / report.* / domain.* / workspace.*        │
 │  · 传输：stdio（默认）/ streamable http         │
 ├─────────────────────────────────────────────┤
 │ 企业数据层 Service（decp_core.services）        │
-│  · FeedbackService / RequirementService         │
+│  · FeedbackService / RequirementService /        │
+│    WorkspaceService（多租户隔离）                 │
 │  · 整理分析：分类/去重/聚类/影响/优先级/来源校验    │
 ├─────────────────────────────────────────────┤
 │ 存储层（decp_core.storage）                    │
@@ -106,8 +107,10 @@ DECP 按设计文档实现产品需求收集、整理与分析场景的**四层�
 
 - **去重 / 聚类**：字符 n-gram 相似度（2-gram / 3-gram Dice + 公共子串），对中文同义改写 / 标点 / 插入鲁棒且确定性；去重阈值 0.28、聚类阈值 0.24（依据真实反馈分布校准）。
 - **人工决策保留**：需求正式入库必须经过产品经理 Review（accept / merge / reject），审批人 / 时间落库。
+- **归档（软归档）**：已审核完结需求（accepted / rejected / merged）可归档移出活跃视图，默认查询过滤、可恢复；未审核（draft / reviewing）不可归档，保证归档不越人工审批边界。
 - **来源追溯**：每条需求携带 `source_ref`（反馈 id / 工单号），保证可追溯。
 - **出站控制**：MCP Gateway 层做权限检查 · 字段过滤 · 出站控制，客户数据不越域。
+- **多工作区隔离（multi-tenancy）**：`user` / `workspace` / `workspace_member` 三表 + `feedback` / `requirement` 的 `workspace_id` 列实现产品维度隔离。每个用户可创建多个产品 workspace，他人申请加入由 owner 审批；所有数据读写按调用者 workspace 强制过滤，非成员拒绝。身份来源为 MCP ctx meta / 显式参数，默认工作区 `default` 兜底存量数据，单租户行为不变。
 
 ## 6. 分发与安装
 
@@ -143,7 +146,7 @@ DECP 的技能是 **目录形态**：`skills/{skill-name}/` 下含 `SKILL.md`（
 2. `MCPClient` 连接 DECP MCP server（stdio 或 HTTP）；
 3. Agent 对话中按技能 description 自动触发。
 
-**已验证**：4 个技能全部加载（含 `soul` 人格注入），13 个 MCP 工具可调，数据落库。
+**已验证**：4 个技能全部加载（含 `soul` 人格注入），22 个 MCP 工具可调，数据落库。
 
 ### 7.2 deerflow
 
@@ -194,7 +197,7 @@ DECP 的技能是 **目录形态**：`skills/{skill-name}/` 下含 `SKILL.md`（
 ### 7.7 通用集成要点
 
 - **技能与 MCP 分离**：技能定义业务编排，MCP server 提供数据操作。平台不支持技能目录时（如 Codex），可退化为「AGENTS.md 描述 + MCP 工具」组合。
-- **统一验证**：接入后确认 MCP server 返回 13 个工具（`tools/list`）、`domain.stats` 可调用、`feedback.submit` 能落库，即代表技能所需的工具底座就绪。
+- **统一验证**：接入后确认 MCP server 返回 22 个工具（`tools/list`）、`domain.stats` 可调用、`feedback.submit` 能落库，即代表技能所需的工具底座就绪。
 - **soul 注入**：`soul` 技能无工具依赖、不参与意图路由，作为数字员工的人格设定注入 Agent 上下文；流程技能负责触发，soul 负责立场与红线（人工审批不可绕过 / 数据主权 / Prompt Injection 防护）。Claude Code 可将 `soul/SKILL.md` 放入项目技能目录随 Agent 加载；Codex 将其要点并入 `AGENTS.md`。
 
 ## 8. 许可

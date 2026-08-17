@@ -48,6 +48,11 @@ def main() -> None:
                         help="产品经理审核决策")
     parser.add_argument("--requirement-id", default=None, help="审核的目标需求 id")
     parser.add_argument("--reviewer", default="product_manager")
+    parser.add_argument("--archive", metavar="REQ-xxx", default=None,
+                        help="归档指定需求（须已审核完结）")
+    parser.add_argument("--restore", metavar="REQ-xxx", default=None,
+                        help="恢复指定已归档需求")
+    parser.add_argument("--archived-by", default="maintainer", help="归档人")
     args = parser.parse_args()
 
     params: dict = {}
@@ -61,6 +66,11 @@ def main() -> None:
         params["decision"] = args.decision
         params["requirement_id"] = args.requirement_id
         params["reviewer"] = args.reviewer
+    if args.archive:
+        params["archive_requirement"] = args.archive
+        params["archived_by"] = args.archived_by
+    if args.restore:
+        params["restore_requirement"] = args.restore
 
     asyncio.run(_run(args.instruction, params))
 

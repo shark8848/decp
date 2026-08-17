@@ -6,7 +6,7 @@
 
 | 技能 | 目录 | 用途 | 依赖工具 |
 | --- | --- | --- | --- |
-| 需求收集-整理-分析 | [requirement-analysis/](requirement-analysis/SKILL.md) | 完整闭环：反馈 → 分析 → 审核 → 入库 | `feedback.*` + `requirement.*` + `report.*` |
+| 需求收集-整理-分析 | [requirement-analysis/](requirement-analysis/SKILL.md) | 完整闭环：反馈 → 分析 → 审核 → 入库 → 归档 | `feedback.*` + `requirement.*` + `report.*` |
 | 需求与反馈查询 | [requirement-query/](requirement-query/SKILL.md) | 只读查询：反馈/需求列表、详情、查重、统计 | `feedback.search`/`get`、`requirement.search`/`get`/`find_similar`、`domain.stats` |
 | 客户反馈收集 | [feedback-collect/](feedback-collect/SKILL.md) | 录入反馈并结构化（自然语言/工单/Excel） | `feedback.submit` |
 | 数字员工人格 | [soul/](soul/SKILL.md) | 人格 / 价值观 / 行为准则：定义数字员工以何种立场工作，与流程技能配合注入 | 无（不触发，仅注入） |
@@ -34,7 +34,7 @@ Agent Runtime（成熟系统）
    │ 读取 SKILL.md 理解技能流程
    ▼
 DECP MCP server（stdio / streamable http）
-   │ 13 个工具（feedback.* / requirement.* / report.* / domain.*）
+   │ 22 个工具（feedback.* / requirement.* / report.* / domain.* / workspace.*）
    ▼
 DECP 数据域（feedback / requirement / app_meta，SQLite / PostgreSQL）
 ```
@@ -42,6 +42,7 @@ DECP 数据域（feedback / requirement / app_meta，SQLite / PostgreSQL）
 - Agent 的 skill 调度器加载本目录 SKILL.md；执行时调用 `decp` MCP server 的对应工具。
 - `soul` 作为数字员工的人格注入：加载后让 Agent 明确立场与红线，**不参与意图路由**（不在触发技能之列）。
 - 人工审批由 `requirement.review` 保证：数字员工只能产出 Draft，正式入库必须有产品经理审核记录。
+- 归档由 `requirement.archive` 保证：仅已审核完结需求可归档（draft/reviewing 不可归档），默认查询过滤、可恢复。
 
 ## 新增技能
 
@@ -76,4 +77,4 @@ async def main():
 asyncio.run(main())
 ```
 
-AgentScope 的 skill 调度模型与 Claude Code 同构：`LocalSkillLoader` 扫描目录解析 SKILL.md，LLM 通过内置 `Skill` 查看器工具按名读取技能正文（知识包），随后调用 DECP MCP 的 13 个工具完成数据操作。详见 [docs/agentscope-integration.md](../docs/agentscope-integration.md)。
+AgentScope 的 skill 调度模型与 Claude Code 同构：`LocalSkillLoader` 扫描目录解析 SKILL.md，LLM 通过内置 `Skill` 查看器工具按名读取技能正文（知识包），随后调用 DECP MCP 的 22 个工具完成数据操作。详见 [docs/agentscope-integration.md](../docs/agentscope-integration.md)。

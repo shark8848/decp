@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, BigInteger, DateTime, Float, Integer, String, Text, Index
+from sqlalchemy import JSON, BigInteger, Boolean, DateTime, Float, Integer, String, Text, Index
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -30,6 +30,7 @@ class FeedbackOrm(Base):
     __tablename__ = "feedback"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(String, nullable=False, default="default")
     content: Mapped[str] = mapped_column(Text, nullable=False)
     channel: Mapped[str] = mapped_column(String, nullable=False, default="natural_language")
     customer: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -45,6 +46,7 @@ class FeedbackOrm(Base):
         Index("idx_feedback_customer", "customer"),
         Index("idx_feedback_module", "module"),
         Index("idx_feedback_created_at", "created_at"),
+        Index("idx_feedback_workspace", "workspace_id"),
     )
 
 
@@ -54,6 +56,7 @@ class RequirementOrm(Base):
     __tablename__ = "requirement"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(String, nullable=False, default="default")
     title: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
     module: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -72,12 +75,58 @@ class RequirementOrm(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     approved_by: Mapped[str | None] = mapped_column(String, nullable=True)
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    archived_by: Mapped[str | None] = mapped_column(String, nullable=True)
 
     __table_args__ = (
         Index("idx_requirement_status", "status"),
         Index("idx_requirement_priority", "priority"),
         Index("idx_requirement_module", "module"),
         Index("idx_requirement_updated_at", "updated_at"),
+        Index("idx_requirement_archived", "archived"),
+        Index("idx_requirement_workspace", "workspace_id"),
+    )
+
+
+class UserOrm(Base):
+    """平台用户（轻量注册，首次出现自动建档）。"""
+
+    __tablename__ = "user"
+
+    user_id: Mapped[str] = mapped_column(String, primary_key=True)
+    name: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class WorkspaceOrm(Base):
+    """产品工作区：一个产品一个 workspace，数据按 workspace 隔离。"""
+
+    __tablename__ = "workspace"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    owner_user_id: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[str] = mapped_column(String, nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (Index("idx_workspace_owner", "owner_user_id"),)
+
+
+class WorkspaceMemberOrm(Base):
+    """工作区成员：owner 可审批加入，member 只读写。"""
+
+    __tablename__ = "workspace_member"
+
+    workspace_id: Mapped[str] = mapped_column(String, primary_key=True)
+    user_id: Mapped[str] = mapped_column(String, primary_key=True)
+    role: Mapped[str] = mapped_column(String, nullable=False, default="member")
+    status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
+    joined_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        Index("idx_member_user", "user_id"),
+        Index("idx_member_status", "status"),
     )
 
 

@@ -27,6 +27,12 @@ def new_id(prefix: str) -> str:
 Priority = Literal["P0", "P1", "P2", "P3"]
 ReqStatus = Literal["draft", "reviewing", "accepted", "merged", "rejected"]
 FeedbackChannel = Literal["natural_language", "excel", "ticket", "api"]
+MemberRole = Literal["owner", "member"]
+JoinStatus = Literal["pending", "approved", "rejected"]
+
+# 默认工作区 / 默认用户：存量数据兜底，未显式指定身份时的归属
+DEFAULT_WORKSPACE_ID = "default"
+DEFAULT_USER_ID = "default_user"
 
 
 class SourceRef(BaseModel):
@@ -37,6 +43,44 @@ class SourceRef(BaseModel):
     ref_type: Literal["feedback", "ticket", "excel", "api", "manual"]
     ref_id: str
     detail: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# 用户 / 工作区（多租户隔离）
+# ---------------------------------------------------------------------------
+
+class User(BaseModel):
+    """平台用户：数字员工调用方的身份标识（轻量注册，首次出现自动建档）。"""
+
+    model_config = ConfigDict(extra="ignore")
+
+    user_id: str = Field(min_length=1, description="用户唯一标识")
+    name: str | None = None
+    created_at: datetime
+
+
+class Workspace(BaseModel):
+    """产品工作区：一个产品对应一个 workspace，数据按 workspace 隔离。"""
+
+    model_config = ConfigDict(extra="ignore")
+
+    id: str = Field(description="工作区 id，如 ws-xxx")
+    name: str = Field(min_length=1, description="工作区名称（产品名）")
+    owner_user_id: str = Field(min_length=1, description="创建者（owner）")
+    description: str = ""
+    created_at: datetime
+
+
+class WorkspaceMember(BaseModel):
+    """工作区成员：owner 可审批加入，member 只读写。"""
+
+    model_config = ConfigDict(extra="ignore")
+
+    workspace_id: str
+    user_id: str
+    role: MemberRole = "member"
+    status: JoinStatus = "pending"
+    joined_at: datetime | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -64,6 +108,7 @@ class Feedback(FeedbackCreate):
     model_config = ConfigDict(extra="ignore")
 
     id: str
+    workspace_id: str = Field(default=DEFAULT_WORKSPACE_ID, description="所属工作区")
     created_at: datetime
     structured: dict = Field(default_factory=dict, description="结构化抽取结果")
 
@@ -98,11 +143,15 @@ class Requirement(RequirementCreate):
     model_config = ConfigDict(extra="ignore")
 
     id: str
+    workspace_id: str = Field(default=DEFAULT_WORKSPACE_ID, description="所属工作区")
     version: int = 1
     created_at: datetime
     updated_at: datetime
     approved_by: str | None = None
     approved_at: datetime | None = None
+    archived: bool = False
+    archived_at: datetime | None = None
+    archived_by: str | None = None
 
 
 # ---------------------------------------------------------------------------

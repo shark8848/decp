@@ -56,6 +56,28 @@ async def test_sqlite_requirement_crud(sqlite_storage):
 
 
 @pytest.mark.asyncio
+async def test_requirement_archived_filter(sqlite_storage):
+    """归档过滤：默认隐藏 archived，include_archived 显式包含。"""
+    now = utcnow()
+    rec = RequirementCreate(title="归档过滤测试", module="归档", priority="P2")
+    rid = await sqlite_storage.requirement_insert(
+        {**rec.model_dump(), "id": new_id("req"), "created_at": now, "updated_at": now, "version": 1}
+    )
+    # 默认列表含活跃
+    assert len(await sqlite_storage.requirement_list()) == 1
+    # 归档
+    await sqlite_storage.requirement_update(rid, {"archived": True})
+    assert len(await sqlite_storage.requirement_list()) == 0
+    assert len(await sqlite_storage.requirement_list(include_archived=True)) == 1
+    # count 同样区分
+    assert await sqlite_storage.requirement_count() == 0
+    assert await sqlite_storage.requirement_count(include_archived=True) == 1
+    # 归档记录字段回读
+    got = await sqlite_storage.requirement_get(rid)
+    assert got["archived"] is True
+
+
+@pytest.mark.asyncio
 async def test_meta(sqlite_storage):
     await sqlite_storage.meta_set("schema_version", 1)
     assert await sqlite_storage.meta_get("schema_version") == 1

@@ -1,4 +1,4 @@
-"""MCP 工具层测试：13 个工具注册与调用、结构化返回。"""
+"""MCP 工具层测试：15 个工具注册与调用、结构化返回。"""
 from __future__ import annotations
 
 import pytest
@@ -13,16 +13,24 @@ async def test_register_all_tools(sqlite_storage):
     tools = register_all_tools(server, sqlite_storage, str(sqlite_storage._path.parent / "reports"))
     listed = await server.list_tools()
     names = [t.name for t in listed]
-    assert len(names) == len(DecpTools.TOOL_BINDINGS) == 13
+    assert len(names) == len(DecpTools.TOOL_BINDINGS) == 22
     expected = {
         "feedback.submit", "feedback.search", "feedback.get",
         "requirement.analyze", "requirement.generate_draft", "requirement.create",
-        "requirement.review", "requirement.find_similar", "requirement.search",
+        "requirement.review", "requirement.archive", "requirement.restore",
+        "requirement.find_similar", "requirement.search",
         "requirement.get", "report.generate_html", "report.generate_excel",
         "domain.stats",
+        "workspace.create", "workspace.join", "workspace.approve_member",
+        "workspace.reject_member", "workspace.list", "workspace.get",
+        "workspace.members",
     }
     assert set(names) == expected
     assert tools.tool_callable("feedback.submit") is not None
+    assert tools.tool_callable("requirement.archive") is not None
+    assert tools.tool_callable("requirement.restore") is not None
+    assert tools.tool_callable("workspace.create") is not None
+    assert tools.tool_callable("workspace.approve_member") is not None
 
 
 @pytest.mark.asyncio
@@ -60,6 +68,43 @@ async def test_requirement_flow(sqlite_storage):
         "requirement_id": req["id"], "decision": "accept", "reviewer": "pm",
     })
     assert review.structured_content["requirement"]["status"] == "accepted"
+
+
+@pytest.mark.asyncio
+async def test_requirement_archive_restore(sqlite_storage):
+    server = MCPServer("decp", version="0.1.0")
+    register_all_tools(server, sqlite_storage, str(sqlite_storage._path.parent / "reports"))
+    await server.call_tool("feedback.submit", {
+        "content": "客户 C 登录认证失败，影响日常作业。", "customer": "Customer C",
+    })
+    draft = await server.call_tool("requirement.generate_draft", {})
+    req = draft.structured_content["requirement"]
+
+    # 未审核（draft）不可归档
+    err = await server.call_tool("requirement.archive", {"requirement_id": req["id"]})
+    assert err.is_error is True
+
+    # 审核后归档成功
+    await server.call_tool("requirement.review", {
+        "requirement_id": req["id"], "decision": "accept", "reviewer": "pm",
+    })
+    arch = await server.call_tool("requirement.archive", {
+        "requirement_id": req["id"], "archived_by": "pm",
+    })
+    assert arch.structured_content["ok"] is True
+    assert arch.structured_content["requirement"]["archived"] is True
+    assert arch.structured_content["requirement"]["archived_by"] == "pm"
+
+    # 默认搜索不含归档，include_archived 含
+    active = await server.call_tool("requirement.search", {})
+    assert all(not i["archived"] for i in active.structured_content["items"])
+    incl = await server.call_tool("requirement.search", {"include_archived": True})
+    assert any(i["id"] == req["id"] for i in incl.structured_content["items"])
+
+    # 恢复
+    rest = await server.call_tool("requirement.restore", {"requirement_id": req["id"]})
+    assert rest.structured_content["requirement"]["archived"] is False
+    assert rest.structured_content["requirement"]["archived_at"] is None
 
 
 @pytest.mark.asyncio

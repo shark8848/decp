@@ -20,12 +20,16 @@ DECP 平台提供 `feedback.*` / `requirement.*` / `report.*` 三类数据能力
 | `requirement.analyze` | `customer`、`module`、`limit` | 分析结果：分类、去重分组、聚类主题、影响分析、优先级建议（P0-P3）、来源校验 |
 | `requirement.generate_draft` | `title`、`module`、`priority`、`feedback_ids`、`customer` | 需求草稿（REQ-xxx，状态 Draft，携带来源引用/置信度/影响客户数） |
 | `requirement.review` | `requirement_id`、`decision`（accept/reject/merge）、`reviewer` | 审核结果（人工审批，版本递增） |
+| `requirement.archive` | `requirement_id`、`archived_by` | 归档需求（仅已审核完结，移出活跃视图，可恢复） |
+| `requirement.restore` | `requirement_id` | 恢复已归档需求（保留状态/版本/审核历史） |
 | `requirement.create` | `title`、`description`、`module`、`priority`、`feedback_ids`、`source_refs` | 正式需求对象（Schema 校验 + 版本化入库） |
 | `requirement.find_similar` | `text`、`limit` | 相似历史反馈（查重） |
-| `requirement.search` | `status`、`priority`、`module`、`limit` | 需求列表 |
+| `requirement.search` | `status`、`priority`、`module`、`limit`、`include_archived` | 需求列表（默认不含已归档；`include_archived=true` 含） |
 | `requirement.get` | `requirement_id` | 需求完整信息 |
 | `report.generate_html` | `title`、`customer` | HTML 分析报告本地路径 |
 | `report.generate_excel` | — | Excel 报表（需求清单/反馈明细/聚类）本地路径 |
+
+> **工具名对照**：在 AgentScope 等外部运行时下，工具对 LLM 暴露的实际名称为 `mcp__decp__*` 前缀 + `.` → `x` 的改写（如 `feedback.submit` → `mcp__decp__feedbackxsubmit`）。上表为业务简化名。**调用前请以当前环境工具列表中的实际名称为准**，勿用简化名直调；若工具列表不含所需工具，先确认 decp MCP server 已挂载。
 
 ## 标准流程（对应 DECP 业务闭环：反馈 → 分析 → 审核 → 入库）
 
@@ -51,7 +55,13 @@ DECP 平台提供 `feedback.*` / `requirement.*` / `report.*` 三类数据能力
 - 合并 → `decision="merge"`
 `reviewer` 为产品经理身份，不可缺省。审核通过后版本递增，记录审批人与时间。
 
-### 5. 生成报告（可选）
+### 5. 归档 / 恢复（可选）
+已审核完结的需求（accepted/rejected/merged）可归档移出活跃视图，保留可查询与可恢复：
+- 归档 → `requirement.archive`（须为已审核状态；draft/reviewing 不可归档）
+- 恢复 → `requirement.restore`
+- 查询含归档 → `requirement.search` with `include_archived=true`
+
+### 6. 生成报告（可选）
 用户要求查看/下载结果时，调用 `report.generate_html` 或 `report.generate_excel`，返回本地文件路径。
 
 ## 行为约束（强制）

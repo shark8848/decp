@@ -33,7 +33,7 @@
 │  · 工具调用双模式：direct（进程内）/ client（跨进程）│
 ├─────────────────────────────────────────────┤
 │ MCP 工具层（decp_core.mcp_）                    │
-│  · 13 个 tools：feedback.* / requirement.*     │
+│  · 15 个 tools：feedback.* / requirement.*     │
 │    / report.* / domain.*                      │
 │  · 传输：stdio（默认）/ streamable http          │
 ├─────────────────────────────────────────────┤
@@ -57,11 +57,12 @@ src/decp_core/
     sqlite_backend.py      # SQLite 实现（默认，WAL）
     postgres_backend.py    # PostgreSQL 实现（psycopg3 连接池，JSONB）
     __init__.py            # create_storage() 工厂
-  services/__init__.py     # FeedbackService / RequirementService（业务核心）
+  services/__init__.py     # FeedbackService / RequirementService / WorkspaceService
   report/                  # ReportService：HTML（jinja2）+ Excel（openpyxl）
   mcp_/
     main.py                # MCP server 入口（stdio/http）
-    tools.py               # DecpTools：13 个工具注册
+    tools.py               # DecpTools：22 个工具注册（含 workspace.* 多租户）
+    context_injection.py   # 身份解析：ctx meta / 显式参数 → (user_id, workspace_id)
     utils.py               # tool_result / error_result（CallToolResult 构造）
   agent/
     backends.py            # DirectBackend / ClientBackend（双模式）
@@ -71,8 +72,8 @@ src/decp_core/
       requirement_analysis.py  # 需求收集-整理-分析技能
       query.py             # 查询技能
     __init__.py            # DigitalEmployee（意图路由 + 技能调度）
-  cli/                     # seed.py（种子数据）/ demo.py（演示）
-tests/                     # pytest 套件（21 passed，含 PG 后端）
+  cli/                     # seed.py / demo.py / archive.py / workspace.py
+tests/                     # pytest 套件（50 passed，含 PG 后端与多租户隔离）
 data/                      # 运行时数据（db、reports）
 scripts/                   # 启动脚本
 ```
@@ -87,8 +88,9 @@ scripts/                   # 启动脚本
 5. **生成需求草稿** — `requirement.generate_draft`：REQ-xxx，携带影响客户数/优先级/相似反馈数/置信度/状态/来源引用。
 6. **产品经理 Review** — `requirement.review`：accept（接受）/ reject（拒绝）/ merge（合并）；人工审批，版本递增。
 7. **校验并提交正式需求** — `requirement.create`：Schema 校验 + 版本化入库 + 审批记录。
+8. **归档/恢复（可选）** — `requirement.archive` / `restore`：已审核完结需求软归档移出活跃视图，默认查询过滤、可恢复。
 
-## 5. MCP 工具清单（13 个）
+## 5. MCP 工具清单（22 个）
 
 | 数据域 | 工具 | 说明 |
 | --- | --- | --- |
@@ -98,14 +100,26 @@ scripts/                   # 启动脚本
 | requirement | `requirement.generate_draft` | 生成需求草稿（Draft） |
 | requirement | `requirement.create` | 正式写入（版本化入库） |
 | requirement | `requirement.review` | 审核：accept/reject/merge |
+| requirement | `requirement.archive` / `restore` | 归档/恢复已审核完结需求（软归档） |
 | requirement | `requirement.find_similar` | 相似反馈查重 |
-| requirement | `requirement.search` / `get` | 需求查询 |
+| requirement | `requirement.search` / `get` | 需求查询（`include_archived` 含归档） |
 | report | `report.generate_html` / `generate_excel` | 报告导出（可下载） |
 | domain | `domain.stats` | 数据域统计 |
+| workspace | `workspace.create` | 创建产品 workspace（创建者为 owner） |
+| workspace | `workspace.join` | 申请加入（pending，等 owner 审批） |
+| workspace | `workspace.approve_member` / `reject_member` | owner 审批 / 拒绝加入 |
+| workspace | `workspace.list` / `get` / `members` | 我的 workspace / 详情 / 成员列表 |
 
 **工具返回约定**：统一返回 `mcp.types.CallToolResult`，含文本摘要（content）与结构化内容（structured_content）；`MCPServer.convert_result` 对 CallToolResult 原样透传，MCP client 与进程内直调行为一致。
 
-**工具名与实现统一**：`DecpTools.TOOL_BINDINGS` 定义 13 个标准工具名 → 方法映射，`register_all_tools`（MCP 层）与 `DirectBackend`（Skill direct 模式）共用，保证跨模式命名一致。
+**工具名与实现统一**：`DecpTools.TOOL_BINDINGS` 定义 22 个标准工具名 → 方法映射，`register_all_tools`（MCP 层）与 `DirectBackend`（Skill direct 模式）共用，保证跨模式命名一致。
+
+### 多工作区隔离（multi-tenancy）
+
+- 每个用户可创建多个产品 workspace；他人申请加入由 owner 审批（approve / reject）。
+- `feedback` / `requirement` 表含 `workspace_id`，所有数据读写按调用者 workspace 强制过滤，非成员拒绝。
+- 身份来源：MCP 请求 `_meta`（`user_id` / `workspace_id`）经 `Context` 注入 → `context_injection.resolve_identity` 解析；Skill direct / CLI / 测试用显式参数。
+- 默认工作区 `default` 由 `WorkspaceService.ensure_default()` 幂等保障（存量数据兼容，单租户行为不变）。
 
 ## 6. 数字员工 Skill 层
 
@@ -125,9 +139,10 @@ scripts/                   # 启动脚本
 
 ## 7. 存储层
 
-- **StorageBackend 抽象**：feedback / requirement / app_meta 三个数据域的 CRUD + `domain_stats`。
+- **StorageBackend 抽象**：feedback / requirement / app_meta / user / workspace / workspace_member 数据域的 CRUD + `domain_stats`。
 - **SQLite**：默认，WAL 模式，`data/decp.db`。
 - **PostgreSQL**：psycopg3 `AsyncConnectionPool`，JSONB 存结构化字段，TIMESTAMPTZ 存时间。
+- **旧库迁移**：`_ensure_columns` 幂等补齐 `workspace_id` / 归档列（create_all 只建表不补列）。
 - **创建方式**：`create_storage(settings)` → `await storage.connect()` → `await storage.init_schema()`。
 - 两个后端共享同一 service 逻辑（用存储后端的 SQL 差异封装在后端内部）。
 
@@ -175,4 +190,5 @@ DECP_STORAGE_BACKEND=postgres python -m decp_core.mcp_.main
 - **人工审批不可绕过**：生成物只能是草稿（draft），正式入库必须有 `approved_by/approved_at` 审核记录。
 - **工具名统一**：任何新增工具必须同时登记到 `DecpTools.TOOL_BINDINGS`（MCP 层 + direct 后端共用）。
 - **结果可下载**：报告输出到 `data/reports/`，HTML/Excel 均本地文件，供 agent 返回路径。
+- **身份与隔离**：所有数据工具经 `DecpTools._authorize()` 解析身份并校验成员资格；新增数据工具必须带 `ctx` 参数与 `user_id`/`workspace_id` 显式参数并透传 `workspace_id` 到 Service。
 - 新增数据域/数据源须显式说明：泳道、流程、治理约束（身份委托/最小权限/出站控制/审计）。

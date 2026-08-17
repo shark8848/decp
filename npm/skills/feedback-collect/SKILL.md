@@ -20,6 +20,8 @@ description: 客户反馈收集与结构化技能。当维护人员/客服/客�
 - `max_numeric_magnitude`：文本中的最大数值量级
 - `keywords`：关键词
 
+> **工具名对照**：在 AgentScope 等外部运行时下，工具对 LLM 暴露的实际名称为 `mcp__decp__feedbackxsubmit`（`.` → `x`，如 `feedback.submit` → `feedbackxsubmit`）。上表为业务简化名。**调用前请以当前环境工具列表中的实际名称为准**，勿用简化名直调；若工具列表不含所需工具，先确认 decp MCP server 已挂载。
+
 ## 使用方式
 
 1. **收集反馈**：调用 `feedback.submit` 录入。

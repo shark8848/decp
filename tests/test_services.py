@@ -63,6 +63,75 @@ async def test_generate_draft_and_review(sqlite_storage, seeded):
 
 
 @pytest.mark.asyncio
+async def test_archive_restore(sqlite_storage, seeded):
+    svc = RequirementService(sqlite_storage)
+    req = await svc.generate_draft()
+    assert req.archived is False
+
+    # 未审核（draft）不可归档
+    with pytest.raises(ValueError, match="未完成审核"):
+        await svc.archive(req.id)
+
+    # 审核后归档
+    reviewed = await svc.review(req.id, "accept", "pm")
+    archived = await svc.archive(reviewed.id, "pm-zhang")
+    assert archived.archived is True
+    assert archived.archived_by == "pm-zhang"
+    assert archived.archived_at is not None
+    assert archived.version == reviewed.version + 1
+
+    # 重复归档幂等
+    again = await svc.archive(reviewed.id, "pm-zhang")
+    assert again.archived is True
+
+    # 默认 list 不含归档；include_archived 含
+    active = await svc.list()
+    assert all(not r.archived for r in active)
+    incl = await svc.list(include_archived=True)
+    assert any(r.id == reviewed.id for r in incl)
+
+    # 恢复
+    restored = await svc.restore(reviewed.id)
+    assert restored.archived is False
+    assert restored.archived_at is None
+    assert restored.archived_by is None
+    assert restored.status == "accepted"  # 保留状态历史
+
+    # 恢复未归档需求幂等
+    again_restore = await svc.restore(reviewed.id)
+    assert again_restore.archived is False
+
+
+@pytest.mark.asyncio
+async def test_archive_requires_review(sqlite_storage, seeded):
+    """draft / reviewing 不可归档，须先完成人工审核。"""
+    svc = RequirementService(sqlite_storage)
+    draft = await svc.generate_draft()
+    assert draft.status == "draft"
+    with pytest.raises(ValueError):
+        await svc.archive(draft.id)
+
+
+@pytest.mark.asyncio
+async def test_archive_business_log_points(sqlite_storage, seeded, caplog):
+    """归档/恢复业务日志打点：requirement.archived / requirement.restored。"""
+    import logging
+
+    svc = RequirementService(sqlite_storage)
+    req = await svc.generate_draft()
+    await svc.review(req.id, "accept", "pm")
+
+    svc_logger = get_decp_logger("service")
+    with caplog.at_level(logging.INFO, logger=svc_logger.name):
+        await svc.archive(req.id, "pm-zhang")
+        await svc.restore(req.id)
+
+    msgs = "\n".join(r.getMessage() for r in caplog.records)
+    assert "requirement.archived" in msgs and req.id in msgs
+    assert "requirement.restored" in msgs and req.id in msgs
+
+
+@pytest.mark.asyncio
 async def test_find_duplicates_threshold(sqlite_storage, seeded):
     svc = RequirementService(sqlite_storage)
     dup = svc.find_duplicates(seeded)

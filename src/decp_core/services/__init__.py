@@ -116,7 +116,7 @@ class FeedbackService:
     def storage(self) -> StorageBackend:
         return self._storage
 
-    async def create(self, data: FeedbackCreate) -> Feedback:
+    async def create(self, data: FeedbackCreate, *, workspace_id: str = "default") -> Feedback:
         """收集一条反馈并做基础结构化抽取。"""
         rec = Feedback(
             id=new_id("fb"),
@@ -128,6 +128,7 @@ class FeedbackService:
             impact=data.impact,
             source_ref=data.source_ref,
             submitted_by=data.submitted_by,
+            workspace_id=workspace_id,
             created_at=utcnow(),
             structured=self._extract(data),
         )
@@ -140,9 +141,9 @@ class FeedbackService:
         )
         return rec
 
-    async def create_many(self, items: list[FeedbackCreate]) -> list[Feedback]:
+    async def create_many(self, items: list[FeedbackCreate], *, workspace_id: str = "default") -> list[Feedback]:
         """批量收集（Excel/CSV 导入入口）。"""
-        out = [await self.create(item) for item in items]
+        out = [await self.create(item, workspace_id=workspace_id) for item in items]
         _logger.info("feedback.bulk_created count=%d ids=%s", len(out), [f.id for f in out])
         return out
 
@@ -187,17 +188,20 @@ class FeedbackService:
             "extractor": "heuristic",
         }
 
-    async def get(self, fid: str) -> Feedback | None:
-        row = await self._storage.feedback_get(fid)
+    async def get(self, fid: str, *, workspace_id: str = "default") -> Feedback | None:
+        row = await self._storage.feedback_get(fid, workspace_id=workspace_id)
         return Feedback.model_validate(row) if row else None
 
     async def list(self, *, customer: str | None = None, module: str | None = None,
-                   limit: int = 100, offset: int = 0) -> list[Feedback]:
-        rows = await self._storage.feedback_list(customer=customer, module=module, limit=limit, offset=offset)
+                   limit: int = 100, offset: int = 0, workspace_id: str = "default") -> list[Feedback]:
+        rows = await self._storage.feedback_list(
+            customer=customer, module=module, limit=limit, offset=offset,
+            workspace_id=workspace_id,
+        )
         return [Feedback.model_validate(r) for r in rows]
 
-    async def count(self) -> int:
-        return await self._storage.feedback_count()
+    async def count(self, *, workspace_id: str = "default") -> int:
+        return await self._storage.feedback_count(workspace_id=workspace_id)
 
 
 # ---------------------------------------------------------------------------
@@ -358,9 +362,12 @@ class RequirementService:
 
     # ---- 整理与分析（Step4 完整管线） ----
     async def analyze(self, *, customer: str | None = None, module: str | None = None,
-                      limit: int = 200, offset: int = 0) -> AnalysisResult:
+                      limit: int = 200, offset: int = 0, workspace_id: str = "default") -> AnalysisResult:
         """对反馈集合执行 分类 → 去重 → 聚类 → 影响分析 → 优先级建议 → 来源校验。"""
-        items = await self._feedback.list(customer=customer, module=module, limit=limit, offset=offset)
+        items = await self._feedback.list(
+            customer=customer, module=module, limit=limit, offset=offset,
+            workspace_id=workspace_id,
+        )
         result = AnalysisResult(
             categories=self.categorize(items),
             duplicate_groups=self.find_duplicates(items),
@@ -382,15 +389,15 @@ class RequirementService:
     async def generate_draft(self, *, title: str | None = None, description: str | None = None,
                              module: str | None = None, priority: str | None = None,
                              feedback_ids: list[str] | None = None, include_all: bool = False,
-                             customer: str | None = None) -> Requirement:
+                             customer: str | None = None, workspace_id: str = "default") -> Requirement:
         """基于分析结果生成需求草稿（携带来源引用、置信度、聚类信息）。"""
-        items = await self._feedback.list(customer=customer, limit=500)
+        items = await self._feedback.list(customer=customer, limit=500, workspace_id=workspace_id)
         if feedback_ids:
             items = [i for i in items if i.id in feedback_ids]
         if not items:
             raise ValueError("没有可用的反馈数据来生成需求草稿")
 
-        analysis = await self.analyze(customer=customer)
+        analysis = await self.analyze(customer=customer, workspace_id=workspace_id)
         # 置信度：结构化抽取覆盖度 + 聚类规模
         covered = sum(1 for i in items if i.structured.get("feedback_type"))
         confidence = round(0.5 * (covered / len(items)) + 0.3 * min(len(items) / 5, 1) + 0.2, 3)
@@ -432,7 +439,7 @@ class RequirementService:
             tags=[items[0].structured.get("feedback_type") or "general"],
             extra={"cluster_count": len(analysis.clusters)},
         )
-        created = await self.create(req)
+        created = await self.create(req, workspace_id=workspace_id)
         _logger.info(
             "requirement.draft_generated id=%s title=%.60s priority=%s confidence=%.3f "
             "similar_feedback=%d impact_customers=%s cluster=%s",
@@ -442,7 +449,7 @@ class RequirementService:
         return created
 
     # ---- 入库（Step7） ----
-    async def create(self, data: RequirementCreate) -> Requirement:
+    async def create(self, data: RequirementCreate, *, workspace_id: str = "default") -> Requirement:
         now = utcnow()
         req = Requirement(
             id=new_id("req"),
@@ -459,6 +466,7 @@ class RequirementService:
             confidence=data.confidence,
             tags=data.tags,
             extra=data.extra,
+            workspace_id=workspace_id,
             version=1,
             created_at=now,
             updated_at=now,
@@ -473,9 +481,9 @@ class RequirementService:
         return req
 
     # ---- 审核（Step6） ----
-    async def review(self, rid: str, decision: str, reviewer: str) -> Requirement:
+    async def review(self, rid: str, decision: str, reviewer: str, *, workspace_id: str = "default") -> Requirement:
         """产品经理审核：接受(accepted) / 修改(merging draft 后 accepted) / 合并(merged) / 拒绝(rejected)。"""
-        cur = await self._storage.requirement_get(rid)
+        cur = await self._storage.requirement_get(rid, workspace_id=workspace_id)
         if cur is None:
             raise KeyError(f"需求不存在: {rid}")
         decision = decision.lower()
@@ -494,7 +502,7 @@ class RequirementService:
             "updated_at": now,
             "version": int(cur.get("version", 1)) + 1,
         }
-        row = await self._storage.requirement_update(rid, fields)
+        row = await self._storage.requirement_update(rid, fields, workspace_id=workspace_id)
         assert row is not None
         result = Requirement.model_validate(row)
         _logger.info(
@@ -503,20 +511,86 @@ class RequirementService:
         )
         return result
 
+    # ---- 归档（Step7 后处理） ----
+    # 仅已审核完结的需求可归档；draft/reviewing 必须先完成审核（人工决策权不可让渡）
+    _ARCHIVABLE_STATUS = {"accepted", "rejected", "merged"}
+
+    async def archive(self, rid: str, archived_by: str = "maintainer", *, workspace_id: str = "default") -> Requirement:
+        """归档需求：移出活跃视图但保留可查询与可恢复。
+
+        - 仅允许已审核状态（accepted/rejected/merged）；未完结（draft/reviewing）拒绝
+        - 幂等：已归档重复调用返回当前状态
+        """
+        cur = await self._storage.requirement_get(rid, workspace_id=workspace_id)
+        if cur is None:
+            raise KeyError(f"需求不存在: {rid}")
+        if cur.get("archived"):
+            return Requirement.model_validate(cur)
+        if cur.get("status") not in self._ARCHIVABLE_STATUS:
+            raise ValueError(
+                f"需求 {rid} 状态为 {cur.get('status')}，未完成审核不可归档"
+                f"（可归档状态: {'/'.join(sorted(self._ARCHIVABLE_STATUS))}）"
+            )
+        now = utcnow()
+        fields: dict[str, Any] = {
+            "archived": True,
+            "archived_at": now,
+            "archived_by": archived_by,
+            "updated_at": now,
+            "version": int(cur.get("version", 1)) + 1,
+        }
+        row = await self._storage.requirement_update(rid, fields, workspace_id=workspace_id)
+        assert row is not None
+        result = Requirement.model_validate(row)
+        _logger.info(
+            "requirement.archived id=%s status=%s archived_by=%s version=%d",
+            rid, result.status, archived_by, result.version,
+        )
+        return result
+
+    async def restore(self, rid: str, *, workspace_id: str = "default") -> Requirement:
+        """恢复归档需求：清除归档标记，保留状态/版本/审核历史。"""
+        cur = await self._storage.requirement_get(rid, workspace_id=workspace_id)
+        if cur is None:
+            raise KeyError(f"需求不存在: {rid}")
+        if not cur.get("archived"):
+            return Requirement.model_validate(cur)
+        now = utcnow()
+        fields: dict[str, Any] = {
+            "archived": False,
+            "archived_at": None,
+            "archived_by": None,
+            "updated_at": now,
+            "version": int(cur.get("version", 1)) + 1,
+        }
+        row = await self._storage.requirement_update(rid, fields, workspace_id=workspace_id)
+        assert row is not None
+        result = Requirement.model_validate(row)
+        _logger.info(
+            "requirement.restored id=%s status=%s version=%d",
+            rid, result.status, result.version,
+        )
+        return result
+
     # ---- 查询 ----
-    async def get(self, rid: str) -> Requirement | None:
-        row = await self._storage.requirement_get(rid)
+    async def get(self, rid: str, *, workspace_id: str = "default") -> Requirement | None:
+        row = await self._storage.requirement_get(rid, workspace_id=workspace_id)
         return Requirement.model_validate(row) if row else None
 
     async def list(self, *, status: str | None = None, priority: str | None = None,
-                   module: str | None = None, limit: int = 100, offset: int = 0) -> list[Requirement]:
+                   module: str | None = None, limit: int = 100, offset: int = 0,
+                   include_archived: bool = False, workspace_id: str = "default") -> list[Requirement]:
         rows = await self._storage.requirement_list(
-            status=status, priority=priority, module=module, limit=limit, offset=offset,
+            status=status, priority=priority, module=module,
+            limit=limit, offset=offset, include_archived=include_archived,
+            workspace_id=workspace_id,
         )
         return [Requirement.model_validate(r) for r in rows]
 
-    async def count(self) -> int:
-        return await self._storage.requirement_count()
+    async def count(self, *, include_archived: bool = False, workspace_id: str = "default") -> int:
+        return await self._storage.requirement_count(
+            include_archived=include_archived, workspace_id=workspace_id,
+        )
 
     @staticmethod
     def _draft_description(items: list[Feedback], analysis: AnalysisResult) -> str:
@@ -534,3 +608,149 @@ def top_cluster_id(analysis: AnalysisResult) -> str | None:
     if not analysis.clusters:
         return None
     return max(analysis.clusters, key=lambda c: c["count"])["id"]
+
+
+# ---------------------------------------------------------------------------
+# WorkspaceService（工作区多租户隔离）
+# ---------------------------------------------------------------------------
+
+class WorkspaceError(ValueError):
+    """工作区业务异常（权限不足/状态冲突等），MCP 层映射为业务错误。"""
+
+
+class WorkspaceService:
+    """工作区数据域：创建、加入、审批、成员与隔离查询。
+
+    权限模型：
+    - 任意已注册用户可 create / join
+    - 仅 owner 可 approve_member（他人加入需审批）
+    - 数据读写须为 workspace 成员（由上层工具按成员资格校验）
+    """
+
+    def __init__(self, storage: StorageBackend) -> None:
+        self._storage = storage
+
+    @property
+    def storage(self) -> StorageBackend:
+        return self._storage
+
+    async def _ensure_user(self, user_id: str) -> None:
+        """轻量用户注册：首次出现自动建档（get_or_create）。"""
+        await self._storage.user_upsert(user_id)
+
+    async def create(self, name: str, owner_user_id: str, description: str = "") -> dict[str, Any]:
+        """创建 workspace，owner 自动成为已批准成员。"""
+        if not name or not name.strip():
+            raise WorkspaceError("工作区名称不能为空")
+        await self._ensure_user(owner_user_id)
+        now = utcnow()
+        wid = new_id("ws")
+        await self._storage.workspace_insert({
+            "id": wid,
+            "name": name.strip(),
+            "owner_user_id": owner_user_id,
+            "description": description,
+            "created_at": now,
+        })
+        await self._storage.member_upsert(wid, owner_user_id, role="owner", status="approved")
+        ws = await self._storage.workspace_get(wid)
+        assert ws is not None
+        _logger.info(
+            "workspace.created id=%s name=%s owner=%s",
+            wid, name.strip(), owner_user_id,
+        )
+        return ws
+
+    async def join(self, workspace_id: str, user_id: str) -> dict[str, Any]:
+        """申请加入 workspace（状态 pending，等待 owner 审批）。"""
+        ws = await self._storage.workspace_get(workspace_id)
+        if ws is None:
+            raise WorkspaceError(f"工作区不存在: {workspace_id}")
+        await self._ensure_user(user_id)
+        # owner 直接批准；已批准成员重复申请返回当前状态
+        if user_id == ws["owner_user_id"]:
+            return await self._storage.member_upsert(workspace_id, user_id, role="owner", status="approved")
+        cur = await self._storage.member_get(workspace_id, user_id)
+        if cur and cur["status"] == "approved":
+            return cur
+        return await self._storage.member_upsert(workspace_id, user_id, role="member", status="pending")
+
+    async def approve_member(self, workspace_id: str, user_id: str, approver: str) -> dict[str, Any]:
+        """owner 审批通过成员加入。仅 owner 可操作，他人加入需审批。"""
+        ws = await self._storage.workspace_get(workspace_id)
+        if ws is None:
+            raise WorkspaceError(f"工作区不存在: {workspace_id}")
+        if ws["owner_user_id"] != approver:
+            raise WorkspaceError(f"仅工作区 owner 可审批成员加入: {approver} 无权限")
+        if user_id == approver:
+            raise WorkspaceError("owner 无需审批自己")
+        cur = await self._storage.member_get(workspace_id, user_id)
+        if cur is None:
+            raise WorkspaceError(f"用户 {user_id} 未申请加入工作区 {workspace_id}")
+        return await self._storage.member_upsert(workspace_id, user_id, role="member", status="approved")
+
+    async def reject_member(self, workspace_id: str, user_id: str, approver: str) -> dict[str, Any]:
+        """owner 拒绝成员加入申请。仅 owner 可操作。"""
+        ws = await self._storage.workspace_get(workspace_id)
+        if ws is None:
+            raise WorkspaceError(f"工作区不存在: {workspace_id}")
+        if ws["owner_user_id"] != approver:
+            raise WorkspaceError(f"仅工作区 owner 可拒绝成员加入: {approver} 无权限")
+        cur = await self._storage.member_get(workspace_id, user_id)
+        if cur is None:
+            raise WorkspaceError(f"用户 {user_id} 未申请加入工作区 {workspace_id}")
+        if cur["status"] != "pending":
+            raise WorkspaceError(f"用户 {user_id} 当前状态为 {cur['status']}，无可拒绝的待审批申请")
+        return await self._storage.member_upsert(workspace_id, user_id, role="member", status="rejected")
+
+    async def list(self, user_id: str) -> list[dict[str, Any]]:
+        """我的 workspace 列表（本人创建或已批准加入的）。"""
+        await self._ensure_user(user_id)
+        return await self._storage.workspace_list_by_user(user_id)
+
+    async def get(self, workspace_id: str, user_id: str) -> dict[str, Any]:
+        """workspace 详情。仅本人 workspace（创建者或已批准成员）可查。"""
+        ws = await self._storage.workspace_get(workspace_id)
+        if ws is None:
+            raise WorkspaceError(f"工作区不存在: {workspace_id}")
+        member = await self._storage.member_get(workspace_id, user_id)
+        if member is None or member["status"] != "approved":
+            raise WorkspaceError(f"用户 {user_id} 不是工作区 {workspace_id} 的成员，无权查看")
+        return ws
+
+    async def members(self, workspace_id: str, user_id: str) -> list[dict[str, Any]]:
+        """成员列表。仅本人 workspace 可查。"""
+        ws = await self.get(workspace_id, user_id)  # 复用成员资格校验
+        assert ws is not None
+        return await self._storage.member_list(workspace_id)
+
+    # ---- 成员资格校验（供数据读写工具复用） ----
+    async def assert_member(self, workspace_id: str, user_id: str) -> dict[str, Any]:
+        """校验 user 是否为 workspace 已批准成员；非成员抛 WorkspaceError。"""
+        member = await self._storage.member_get(workspace_id, user_id)
+        if member is None or member["status"] != "approved":
+            raise WorkspaceError(
+                f"用户 {user_id} 不是工作区 {workspace_id} 的成员（须先申请并被批准）"
+            )
+        return member
+
+    async def ensure_default(self, *, default_user_id: str = "default_user",
+                             default_workspace_id: str = "default") -> None:
+        """幂等保障默认工作区存在且默认用户为已批准 owner。
+
+        存量兼容：无身份调用归默认工作区+默认用户，须保证默认工作区对默认用户可访问，
+        否则既有单租户数据/测试会被成员校验拦截。
+        """
+        ws = await self._storage.workspace_get(default_workspace_id)
+        if ws is None:
+            await self._storage.workspace_insert({
+                "id": default_workspace_id,
+                "name": "默认工作区",
+                "owner_user_id": default_user_id,
+                "description": "单租户存量数据与未指定身份调用的默认归属",
+                "created_at": utcnow(),
+            })
+        await self._storage.user_upsert(default_user_id)
+        await self._storage.member_upsert(
+            default_workspace_id, default_user_id, role="owner", status="approved",
+        )

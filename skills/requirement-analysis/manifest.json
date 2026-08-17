@@ -5,7 +5,7 @@
   "release_channel": "staging",
   "compatibility": "deerflow>=0.0.1",
   "risk_level": "low",
-  "description": "产品需求收集、整理与分析：反馈收集、结构化、去重、聚类、影响分析、优先级建议、需求草稿、人工审核入库、报告导出。",
+  "description": "产品需求收集、整理与分析：反馈收集、结构化、去重、聚类、影响分析、优先级建议、需求草稿、人工审核入库、归档/恢复、报告导出。",
   "depends_on_tools": [
     "feedback.submit",
     "feedback.search",
@@ -13,6 +13,8 @@
     "requirement.analyze",
     "requirement.generate_draft",
     "requirement.review",
+    "requirement.archive",
+    "requirement.restore",
     "requirement.create",
     "requirement.find_similar",
     "requirement.search",

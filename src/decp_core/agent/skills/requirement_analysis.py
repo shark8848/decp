@@ -28,6 +28,8 @@ class RequirementAnalysisSkill(BaseSkill):
         "requirement.analyze",
         "requirement.generate_draft",
         "requirement.review",
+        "requirement.archive",
+        "requirement.restore",
         "requirement.search",
         "report.generate_html",
         "report.generate_excel",
@@ -72,7 +74,20 @@ class RequirementAnalysisSkill(BaseSkill):
             )
             result["review"] = review
 
-        # 5) 报告导出（可查看/下载）
+        # 5) 归档 / 恢复（可选，已审核完结需求移出活跃视图）
+        if params.get("archive_requirement"):
+            result["archived"] = await self._call(
+                "requirement.archive",
+                requirement_id=params["archive_requirement"],
+                archived_by=params.get("archived_by", "maintainer"),
+            )
+        if params.get("restore_requirement"):
+            result["restored"] = await self._call(
+                "requirement.restore",
+                requirement_id=params["restore_requirement"],
+            )
+
+        # 6) 报告导出（可查看/下载）
         if action in ("full", "report"):
             result["report_html"] = await self._call("report.generate_html", title=params.get("report_title", "产品需求收集、整理与分析报告"))
             result["report_excel"] = await self._call("report.generate_excel")

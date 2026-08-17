@@ -71,7 +71,7 @@ decp-demo --instruction "生成报告"
 | 层 | 模块 | 说明 |
 | --- | --- | --- |
 | 数字员工 | `decp_core.agent` | Skill 层：`feedback_collect`（录入）、`requirement_analysis`（需求收集-整理-分析闭环）、`query`（查询）；`SkillCatalog` 扫描 `skills/` 定义。意图路由 → Skill → MCP 工具 |
-| MCP 工具层 | `decp_core.mcp_` | 13 个工具，按 `feedback.*` / `requirement.*` / `report.*` / `domain.*` 组织，Gateway 语义：权限检查 · 字段过滤 · 出站控制 |
+| MCP 工具层 | `decp_core.mcp_` | 22 个工具，按 `feedback.*` / `requirement.*` / `report.*` / `domain.*` / `workspace.*` 组织，Gateway 语义：权限检查（多工作区隔离）· 字段过滤 · 出站控制 |
 | 企业数据层 | `decp_core.services` | 业务逻辑：结构化抽取、去重（文本相似度）、聚类、影响分析、优先级建议、来源校验、需求草稿、审核入库 |
 | 存储层 | `decp_core.storage` | 统一 `StorageBackend` 接口；SQLite / PostgreSQL 双实现；版本与 hash 审计（app_meta） |
 | 报告 | `decp_core.report` | HTML 分析报告 + Excel 报表（需求清单 / 反馈明细 / 聚类） |
@@ -86,10 +86,15 @@ decp-demo --instruction "生成报告"
 | `requirement.generate_draft` | 生成需求草稿（REQ-xxx，状态 Draft，携带来源引用/置信度/影响客户数） |
 | `requirement.create` | 正式写入需求对象（版本化入库） |
 | `requirement.review` | 产品经理审核：accept / reject / merge（人工审批，版本递增） |
+| `requirement.archive` / `requirement.restore` | 归档 / 恢复已审核完结需求（软归档，移出活跃视图） |
 | `requirement.find_similar` | 查找相似反馈（查重入口） |
-| `requirement.search` / `requirement.get` | 查询需求列表 / 详情 |
+| `requirement.search` / `requirement.get` | 查询需求列表 / 详情（`include_archived` 含归档） |
 | `report.generate_html` / `report.generate_excel` | 生成可下载的分析报告 / Excel 报表 |
 | `domain.stats` | 数据域统计 |
+| `workspace.create` | 创建产品 workspace，创建者自动成为 owner |
+| `workspace.join` | 申请加入 workspace（pending，等待 owner 审批） |
+| `workspace.approve_member` / `workspace.reject_member` | owner 审批 / 拒绝成员加入 |
+| `workspace.list` / `workspace.get` / `workspace.members` | 我的 workspace 列表 / 详情 / 成员列表 |
 
 ### 数字员工 Skill
 
@@ -168,9 +173,11 @@ contextvar，使整条请求链的日志共享同一 trace_id，可按 trace 还
 | `requirement.created` | 需求入库 | `id/title/module/priority/status/version` |
 | `requirement.draft_generated` | 生成需求草稿 | `id/title/priority/confidence/similar_feedback/impact_customers` |
 | `requirement.reviewed` | 产品经理审核 | `id/decision/reviewer/status/version` |
+| `requirement.archived` | 归档需求 | `id/status/archived_by/version` |
+| `requirement.restored` | 恢复归档需求 | `id/status/version` |
 
 端到端：客户端带上 `X-Trace-Id` 调 `feedback.submit` →
-`requirement.analyze` → `requirement.generate_draft` → `requirement.review`，
+`requirement.analyze` → `requirement.generate_draft` → `requirement.review` → `requirement.archive`，
 日志中心按该 trace_id 可还原完整业务链（实测：`GET /api/trace/{trace_id}`
 返回 8 条按时间排序的日志，覆盖 submit×2 → analyze → create → draft → review）。
 
@@ -197,7 +204,38 @@ DECP_PG_USER=decp
 DECP_PG_PASSWORD=******
 ```
 
-首次运行自动建表（feedback / requirement / app_meta）。
+首次运行自动建表（feedback / requirement / app_meta / user / workspace / workspace_member），并幂等创建 `default` 工作区（存量数据归属）。
+
+## 多工作区隔离（workspace multi-tenancy）
+
+DECP 支持多工作区隔离：每个用户可创建多个产品 workspace，其他用户申请加入（owner 审批），所有数据读写限定在调用者所属 workspace 内。
+
+**身份来源**（优先级：显式参数 > MCP ctx meta > 默认身份）：
+
+- MCP 调用：客户端在请求 `_meta` 中携带 `user_id` / `workspace_id`，服务端从 `Context` 自动注入并解析
+- Skill direct / CLI / 测试：通过显式参数 `user_id` / `workspace_id` 传入
+- 未指定身份：归默认用户 + 默认工作区（存量单租户行为不变）
+
+**权限规则**：
+
+| 操作 | 权限 |
+| --- | --- |
+| `workspace.create` | 任意已注册用户 |
+| `workspace.join` | 任意已注册用户（状态 pending） |
+| `workspace.approve_member` / `workspace.reject_member` | 仅 workspace owner |
+| 数据读写（submit / search / analyze / create / review / archive / ...） | 须为 workspace 已批准成员 |
+
+**数据隔离**：`feedback` / `requirement` 表含 `workspace_id` 列，所有查询强制按调用者 workspace 过滤；非成员读写返回业务错误。
+
+**CLI**：
+
+```bash
+decp-workspace create --name "AI 产品" --owner alice
+decp-workspace join --workspace-id WS-xxx --user bob
+decp-workspace approve --workspace-id WS-xxx --user bob --approver alice
+decp-workspace list --user alice
+decp-workspace members --workspace-id WS-xxx --user alice
+```
 
 ## 运行 MCP server
 
@@ -294,7 +332,7 @@ python -c "from decp_core.agent.skill_catalog import SkillCatalog; s=SkillCatalo
 Agent Runtime（成熟系统）
    │ 读取 SKILL.md 理解技能流程（Claude Code / AgentScope 均原生支持）
    ▼
-DECP MCP server（stdio / streamable http，13 个工具）
+DECP MCP server（stdio / streamable http，22 个工具）
    ▼
 DECP 数据域（feedback / requirement / app_meta，SQLite / PostgreSQL）
 ```
