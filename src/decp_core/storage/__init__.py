@@ -6,15 +6,23 @@
 """
 from __future__ import annotations
 
+from urllib.parse import quote
+
 from decp_core.config import Settings
 from decp_core.storage.base import StorageBackend
 from decp_core.storage.orm_backend import ORMStorage
 
 
 def build_dsn(settings: Settings) -> str:
-    """由配置构造 PostgreSQL DSN。"""
+    """由配置构造 PostgreSQL DSN。
+
+    用户名/密码经 URL 百分号编码：密码中若含 ``@`` ``#`` ``$`` ``!`` 等
+    保留字符（如 ``decp123456$#@!``），直接内联会污染 host/port 解析，
+    ``#`` 会被当作 URL fragment 分隔符导致连接失败。
+    """
     return (
-        f"postgresql+psycopg://{settings.pg_user}:{settings.pg_password}"
+        f"postgresql+psycopg://{quote(settings.pg_user, safe='')}:"
+        f"{quote(settings.pg_password, safe='')}"
         f"@{settings.pg_host}:{settings.pg_port}/{settings.pg_db}"
     )
 

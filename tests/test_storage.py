@@ -151,3 +151,44 @@ async def test_postgres_crud(tmp_path):
         assert stats["backend"] == "postgres"
     finally:
         await storage.close()
+
+
+def test_build_dsn_urlencodes_password():
+    """密码/用户名含 URL 保留字符时必须百分号编码，否则污染 host 解析。"""
+    from sqlalchemy.engine import make_url
+
+    from decp_core.config import Settings
+    from decp_core.storage import build_dsn
+
+    s = Settings(
+        storage_backend="postgres",
+        pg_host="10.0.0.1", pg_port=5432,
+        pg_db="decp", pg_user="decp", pg_password="p@ss#wo$rd!",
+    )
+    u = make_url(build_dsn(s))
+    assert u.host == "10.0.0.1"
+    assert u.port == 5432
+    assert u.username == "decp"
+    assert u.password == "p@ss#wo$rd!"
+    # 编码后的 DSN 不应含未编码的保留字符
+    dsn = build_dsn(s)
+    assert "p@ss#wo$rd!" not in dsn
+    assert "@10.0.0.1" in dsn  # host 前的 @ 是分隔符，不受影响
+
+
+def test_build_dsn_plain_password_unchanged():
+    """普通密码（无保留字符）编码后语义不变。"""
+    from sqlalchemy.engine import make_url
+
+    from decp_core.config import Settings
+    from decp_core.storage import build_dsn
+
+    s = Settings(
+        storage_backend="postgres",
+        pg_host="db.internal", pg_port=6000,
+        pg_db="decp", pg_user="pm", pg_password="simple-pass",
+    )
+    u = make_url(build_dsn(s))
+    assert u.host == "db.internal"
+    assert u.username == "pm"
+    assert u.password == "simple-pass"
