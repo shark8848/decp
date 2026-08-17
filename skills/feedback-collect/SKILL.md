@@ -12,7 +12,8 @@ description: 客户反馈收集与结构化技能。当维护人员/客服/客�
 
 | 工具 | 入参要点 | 返回内容 |
 |------|---------|---------|
-| `feedback.submit` | `content`（必填）、`channel`（natural_language/excel/ticket/api）、`customer`、`module`、`feedback_type`、`impact`、`source_ref`、`submitted_by` | 反馈 id + 结构化抽取结果 |
+| `feedback.submit` | `content`（必填）、`channel`（natural_language/excel/ticket/api）、`customer`、`module`、`feedback_type`、`impact`、`source_ref`、`submitted_by` | 反馈 id + 结构化抽取结果（含 `workspace_id`） |
+| `workspace.list` | — | 本人所属 workspace 列表（归属确认） |
 
 结构化抽取由平台完成，返回字段：
 - `feedback_type`：问题类型（性能/容量/功能/兼容/登录认证/同步/安全）
@@ -21,6 +22,10 @@ description: 客户反馈收集与结构化技能。当维护人员/客服/客�
 - `keywords`：关键词
 
 > **工具名对照**：在 AgentScope 等外部运行时下，工具对 LLM 暴露的实际名称为 `mcp__decp__feedbackxsubmit`（`.` → `x`，如 `feedback.submit` → `feedbackxsubmit`）。上表为业务简化名。**调用前请以当前环境工具列表中的实际名称为准**，勿用简化名直调；若工具列表不含所需工具，先确认 decp MCP server 已挂载。
+
+## 多工作区隔离（多租户）
+
+DECP 按 workspace 隔离数据：`feedback.submit` 写入的反馈归属当前身份所在 workspace，工具调用时校验成员资格。身份来源：显式参数 `user_id` / `workspace_id` > 调用上下文 > 默认身份。首次使用前可先 `workspace.list` 确认归属；返回 `WorkspaceError`（非成员）时需先创建/加入工作区。`feedback.submit` 返回的 `workspace_id` 用于确认反馈归属作用域。
 
 ## 使用方式
 

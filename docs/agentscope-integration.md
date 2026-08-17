@@ -73,7 +73,7 @@ async def main():
     )
     await client.connect()
     try:
-        tools = await client.list_tools()          # 15 个 DECP 工具
+        tools = await client.list_tools()          # 22 个 DECP 工具
         tool = await client.get_tool("feedback.submit")
         result = await tool.call(
             content="客户D：权限模块批量授权时偶发失败，管理员操作被中断",
@@ -99,10 +99,9 @@ asyncio.run(main())
 
 **① 技能：上传 `skills/decp-skills.zip` 到平台**
 
-平台技能管理页导入 zip（内含 `soul` + `feedback-collect` + `requirement-query` + `requirement-analysis` 四个技能目录与 `README.md`）。每个 Agent 装配时挂载：
+平台技能管理页导入 zip（内含 `feedback-collect` + `requirement-query` + `requirement-analysis` 三个流程技能目录与 `README.md`；**不含 `soul` 人格技能**——soul.md / skills/soul/ 仅在本地保留，供 SkillCatalog / Claude Code 项目级加载注入，不随技能包分发到外部平台）。每个 Agent 装配时挂载：
 
 - **3 个流程技能**（`feedback-collect` / `requirement-query` / `requirement-analysis`）：作为可触发技能，LLM 按名读取正文知识包。
-- **`soul` 人格技能**：作为立场与约束注入（不参与意图路由，不作为可触发技能）。
 
 **② MCP：在平台侧配置远程 DECP server**
 
@@ -150,7 +149,7 @@ AgentScope 对 LLM 暴露的工具名为 `mcp__decp__` 前缀 + `.`→`x` 改写
 AgentScope 智能体（LLM 意图理解）
    │  Skill 工具按名读取 DECP 技能正文（知识包）
    ▼
-DECP MCP 工具（15 个：feedback.* / requirement.* / report.* / domain.*）
+DECP MCP 工具（22 个：feedback.* / requirement.* / report.* / domain.* / workspace.*）
    │
    ▼
 DECP 数据域（SQLite / PostgreSQL）
@@ -163,7 +162,7 @@ DECP 数据域（SQLite / PostgreSQL）
 | `feedback-collect` | 录入客户反馈并结构化 | `feedback.submit` |
 | `requirement-analysis` | 收集→整理→分析→审核→入库 全闭环 | `feedback.*` + `requirement.*` + `report.*`（12 个） |
 | `requirement-query` | 只读查询/查重/统计 | `feedback.search/get`、`requirement.search/get/find_similar`、`domain.stats`（6 个） |
-| `soul` | 人格注入（不触发）：立场与红线 | 无 |
+| `soul` | 人格定义（本地加载，不打包分发）：立场与红线 | 无 |
 
 ## 4. 治理约束（AgentScope 侧注意）
 
@@ -189,7 +188,7 @@ DECP 技能正文内含硬性行为约束，AgentScope 加载后应原样遵循�
 
 | 文件 | 说明 |
 | --- | --- |
-| `skills/decp-skills.zip` | 技能包（soul + 3 个流程技能 + README），上传到异地平台的载体 |
+| `skills/decp-skills.zip` | 技能包（3 个流程技能 + README，不含 soul），上传到异地平台的载体 |
 | `skills/{name}/SKILL.md` | 技能定义（name/version/description + 正文知识包） |
 | `skills/{name}/manifest.json` | 发布清单（依赖工具 / MCP server） |
 | `skills/README.md` | 技能目录总览与多运行时兼容说明 |

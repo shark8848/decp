@@ -5,9 +5,10 @@
   "release_channel": "staging",
   "compatibility": "deerflow>=0.0.1",
   "risk_level": "low",
-  "description": "客户反馈收集与结构化：录入自然语言/工单/Excel 反馈，完成结构化理解，进入 feedback 数据域。",
+  "description": "客户反馈收集与结构化：录入自然语言/工单/Excel 反馈，完成结构化理解，进入 feedback 数据域。多工作区隔离下反馈归属当前身份所在工作区。",
   "depends_on_tools": [
-    "feedback.submit"
+    "feedback.submit",
+    "workspace.list"
   ],
   "depends_on_mcp_servers": [
     "decp"

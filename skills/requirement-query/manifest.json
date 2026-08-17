@@ -5,14 +5,16 @@
   "release_channel": "staging",
   "compatibility": "deerflow>=0.0.1",
   "risk_level": "low",
-  "description": "需求与反馈查询：查看反馈/需求列表、详情、相似反馈查重、数据域统计（只读）。",
+  "description": "需求与反馈查询：查看反馈/需求列表、详情、相似反馈查重、数据域统计（只读）。多工作区隔离下查询作用于当前身份所属工作区。",
   "depends_on_tools": [
     "feedback.search",
     "feedback.get",
     "requirement.search",
     "requirement.get",
     "requirement.find_similar",
-    "domain.stats"
+    "domain.stats",
+    "workspace.list",
+    "workspace.get"
   ],
   "depends_on_mcp_servers": [
     "decp"
