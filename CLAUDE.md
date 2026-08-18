@@ -61,7 +61,7 @@ src/decp_core/
   report/                  # ReportService：HTML（jinja2）+ Excel（openpyxl）
   mcp_/
     main.py                # MCP server 入口（stdio/http）
-    tools.py               # DecpTools：23 个工具注册（含 workspace.* 多租户）
+    tools.py               # DecpTools：54 个工具注册（含 workspace.* 多租户与 task/bug/sprint/meeting/attachment）
     context_injection.py   # 身份解析：ctx meta / 显式参数 → (user_id, workspace_id)
     utils.py               # tool_result / error_result（CallToolResult 构造）
   agent/
@@ -90,7 +90,7 @@ scripts/                   # 启动脚本
 7. **校验并提交正式需求** — `requirement.create`：Schema 校验 + 版本化入库 + 审批记录。
 8. **归档/恢复（可选）** — `requirement.archive` / `restore`：已审核完结需求软归档移出活跃视图，默认查询过滤、可恢复。
 
-## 5. MCP 工具清单（23 个）
+## 5. MCP 工具清单（54 个）
 
 | 数据域 | 工具 | 说明 |
 | --- | --- | --- |
@@ -110,10 +110,32 @@ scripts/                   # 启动脚本
 | workspace | `workspace.join_by_passcode` | 凭通行证直接加入（校验通过即批准为 member） |
 | workspace | `workspace.approve_member` / `reject_member` | owner 审批 / 拒绝加入 |
 | workspace | `workspace.list` / `get` / `members` | 我的 workspace / 详情 / 成员列表 |
+| task | `task.create` | 创建任务（研发需求/项目/技术债/运营/事务），进入看板 backlog |
+| task | `task.update` | 更新任务字段（白名单，留痕） |
+| task | `task.move` | 看板拖拽：状态流转 + 列内排序，in_progress/done 自动记时间戳，blocked 须填原因 |
+| task | `task.board` | 看板视图：按列分组（类 GitHub），任务卡内嵌关联缺陷子卡片 |
+| task | `task.list` / `task.get` | 任务列表 / 详情（含活动流） |
+| task | `task.upload_plan` | 上传方案链接（自动登记附件 + 留痕） |
+| task | `task.link_requirement` | 已审核需求 → 开发任务（一键转化） |
+| task | `task.link_bug` | 任务关联缺陷（双向） |
+| task | `task.archive` / `restore` | 软归档 / 恢复 |
+| bug | `bug.create` / `bug.update` | 创建 / 更新缺陷（独立域，含复现信息） |
+| bug | `bug.transition` | 状态机：new→confirmed→in_progress→fixed→verified→closed/wonfix |
+| bug | `bug.search` / `bug.get` | 缺陷查询 / 详情（含多域关联） |
+| bug | `bug.link` | 多域关联：反馈/需求/任务/会议（双向） |
+| bug | `bug.from_feedback` | 客户反馈 → 缺陷 |
+| bug | `bug.upload_plan` | 上传修复方案链接 |
+| bug | `bug.archive` / `restore` | 软归档 / 恢复 |
+| sprint | `sprint.create` / `sprint.list` | 创建 / 列出迭代排期 |
+| meeting | `meeting.submit` | 提交纪要原文，启发式提取摘要/决议/待办/关键词并存档 |
+| meeting | `meeting.get` / `list` / `search` | 纪要查询 / 列表 / 检索 |
+| meeting | `meeting.to_tasks` | 会议待办 → 批量任务（dry_run 预览） |
+| meeting | `meeting.to_bugs` | 纪要缺陷 → 批量缺陷（dry_run 预览） |
+| attachment | `attachment.upload` / `list` | 方案/附件链接登记与查询（task/bug/meeting 复用） |
 
 **工具返回约定**：统一返回 `mcp.types.CallToolResult`，含文本摘要（content）与结构化内容（structured_content）；`MCPServer.convert_result` 对 CallToolResult 原样透传，MCP client 与进程内直调行为一致。
 
-**工具名与实现统一**：`DecpTools.TOOL_BINDINGS` 定义 23 个标准工具名 → 方法映射，`register_all_tools`（MCP 层）与 `DirectBackend`（Skill direct 模式）共用，保证跨模式命名一致。
+**工具名与实现统一**：`DecpTools.TOOL_BINDINGS` 定义 54 个标准工具名 → 方法映射，`register_all_tools`（MCP 层）与 `DirectBackend`（Skill direct 模式）共用，保证跨模式命名一致。
 
 ### 多工作区隔离（multi-tenancy）
 
@@ -134,13 +156,16 @@ scripts/                   # 启动脚本
 | --- | --- | --- |
 | `requirement_analysis` | 收集反馈并分析、生成需求草稿、生成报告 | feedback.submit/analyze/generate_draft/review/search + report.* |
 | `query` | 查看最近的反馈、查询需求状态 | feedback.search + requirement.search/get/find_similar |
+| `task_management` | 创建任务、看板、排期、流转、需求转任务、方案链接 | task.* + sprint.* + bug.search |
+| `bug_management` | 报告/创建缺陷、状态流转、反馈转缺陷、多域关联 | bug.* + task.create |
+| `meeting_minutes` | 会议纪要、提取待办、待办转任务、纪要缺陷 | meeting.* + task.create + bug.create |
 
 ### 意图路由
 `DigitalEmployee.route()` 按关键词确定性路由到技能；`execute(指令)` 返回 `{skill, matched_by, result}`。接入 LLM 时可将 `skill.description` 作为工具描述交给模型选择，接口不变。
 
 ## 7. 存储层
 
-- **StorageBackend 抽象**：feedback / requirement / app_meta / user / workspace / workspace_member 数据域的 CRUD + `domain_stats`。
+- **StorageBackend 抽象**：feedback / requirement / app_meta / user / workspace / workspace_member / task / bug / sprint / task_log / meeting_minutes / attachment 数据域的 CRUD + `domain_stats`。
 - **SQLite**：默认，WAL 模式，`data/decp.db`。
 - **PostgreSQL**：psycopg3 `AsyncConnectionPool`，JSONB 存结构化字段，TIMESTAMPTZ 存时间。
 - **旧库迁移**：`_ensure_columns` 幂等补齐 `workspace_id` / 归档列（create_all 只建表不补列）。
