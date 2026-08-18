@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -40,7 +40,8 @@ class SourceRef(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    ref_type: Literal["feedback", "ticket", "excel", "api", "manual"]
+    ref_type: Literal["feedback", "ticket", "excel", "api", "manual",
+                      "meeting", "sprint", "bug", "requirement"]
     ref_id: str
     detail: str | None = None
 
@@ -184,3 +185,278 @@ class RequirementDraft(BaseModel):
 
     req: Requirement
     analysis: AnalysisResult
+
+
+# ---------------------------------------------------------------------------
+# 团队任务 / 缺陷 / 会议纪要数据域（v2 扩展）
+# ---------------------------------------------------------------------------
+
+# ---- 枚举 ----
+TaskType = Literal["requirement", "project", "tech_debt", "ops", "chore"]
+TaskStatus = Literal["backlog", "todo", "in_progress", "review", "blocked",
+                     "done", "cancelled"]
+SprintStatus = Literal["planned", "active", "closed"]
+MeetingItemKind = Literal["dev", "chore"]
+BugSeverity = Literal["critical", "high", "medium", "low"]
+BugStatus = Literal["new", "confirmed", "in_progress", "fixed", "verified",
+                    "closed", "wonfix"]
+BugChannel = Literal["feedback", "meeting", "manual", "qa", "monitor", "api"]
+
+
+class ActionItem(BaseModel):
+    """会议待办：强类型条目，供批量任务化。"""
+
+    model_config = ConfigDict(extra="ignore")
+
+    desc: str = Field(min_length=1, description="待办描述")
+    owner: str | None = None
+    due: date | None = None
+    kind: MeetingItemKind = "chore"
+    note: str | None = None
+
+
+class Task(BaseModel):
+    """团队任务：研发需求 / 项目 / 技术债 / 运营 / 事务任务，看板排期与跟踪。
+
+    bug 走独立数据域（Bug），任务经 bug_ids / source_refs 关联缺陷。
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    id: str
+    workspace_id: str = Field(default=DEFAULT_WORKSPACE_ID, description="所属工作区")
+    type: TaskType = "requirement"
+    title: str = Field(min_length=1, description="任务标题")
+    description: str = ""
+    module: str | None = None
+    status: TaskStatus = "backlog"
+    priority: Priority = "P2"
+    assignee: str | None = Field(default=None, description="责任人（须为 workspace 成员）")
+    sprint_id: str | None = Field(default=None, description="排期迭代")
+    planned_start: datetime | None = None
+    due_at: datetime | None = None
+    estimate: float | None = None
+    order: int = 0
+    plan_links: list[str] = Field(default_factory=list, description="方案链接（上传自动管理）")
+    requirement_id: str | None = None
+    feedback_ids: list[str] = Field(default_factory=list)
+    bug_ids: list[str] = Field(default_factory=list, description="关联缺陷（bug 独立域）")
+    source_refs: list[SourceRef] = Field(default_factory=list)
+    labels: list[str] = Field(default_factory=list)
+    extra: dict = Field(default_factory=dict)
+    created_at: datetime
+    updated_at: datetime
+    started_at: datetime | None = None
+    done_at: datetime | None = None
+    archived: bool = False
+    archived_at: datetime | None = None
+    archived_by: str | None = None
+
+
+class TaskCreate(BaseModel):
+    """创建任务（入口数据）。"""
+
+    model_config = ConfigDict(extra="ignore")
+
+    type: TaskType = "requirement"
+    title: str = Field(min_length=1, description="任务标题")
+    description: str = ""
+    module: str | None = None
+    priority: Priority = "P2"
+    assignee: str | None = None
+    sprint_id: str | None = None
+    planned_start: datetime | None = None
+    due_at: datetime | None = None
+    estimate: float | None = None
+    plan_links: list[str] = Field(default_factory=list)
+    requirement_id: str | None = None
+    feedback_ids: list[str] = Field(default_factory=list)
+    bug_ids: list[str] = Field(default_factory=list)
+    source_refs: list[SourceRef] = Field(default_factory=list)
+    labels: list[str] = Field(default_factory=list)
+    extra: dict = Field(default_factory=dict)
+    submitted_by: str = "maintainer"
+
+
+class Bug(BaseModel):
+    """缺陷：独立全生命周期管理，与反馈/需求/任务/会议多域关联。"""
+
+    model_config = ConfigDict(extra="ignore")
+
+    id: str
+    workspace_id: str = Field(default=DEFAULT_WORKSPACE_ID, description="所属工作区")
+    title: str = Field(min_length=1, description="缺陷标题")
+    description: str = ""
+    module: str | None = None
+    severity: BugSeverity = "medium"
+    priority: Priority = "P2"
+    status: BugStatus = "new"
+    channel: BugChannel = "manual"
+    environment: str | None = None
+    reproduce_steps: str | None = None
+    expected: str | None = None
+    actual: str | None = None
+    assignee: str | None = Field(default=None, description="处理人（须为 workspace 成员）")
+    reporter: str = "maintainer"
+    sprint_id: str | None = None
+    due_at: datetime | None = None
+    fix_version: str | None = None
+    plan_links: list[str] = Field(default_factory=list)
+    feedback_ids: list[str] = Field(default_factory=list)
+    requirement_ids: list[str] = Field(default_factory=list)
+    task_ids: list[str] = Field(default_factory=list)
+    meeting_ids: list[str] = Field(default_factory=list)
+    source_refs: list[SourceRef] = Field(default_factory=list)
+    labels: list[str] = Field(default_factory=list)
+    extra: dict = Field(default_factory=dict)
+    created_at: datetime
+    updated_at: datetime
+    fixed_at: datetime | None = None
+    closed_at: datetime | None = None
+    archived: bool = False
+    archived_at: datetime | None = None
+    archived_by: str | None = None
+
+
+class BugCreate(BaseModel):
+    """创建缺陷（入口数据）。"""
+
+    model_config = ConfigDict(extra="ignore")
+
+    title: str = Field(min_length=1, description="缺陷标题")
+    description: str = ""
+    module: str | None = None
+    severity: BugSeverity = "medium"
+    priority: Priority = "P2"
+    channel: BugChannel = "manual"
+    environment: str | None = None
+    reproduce_steps: str | None = None
+    expected: str | None = None
+    actual: str | None = None
+    assignee: str | None = None
+    reporter: str = "maintainer"
+    sprint_id: str | None = None
+    due_at: datetime | None = None
+    fix_version: str | None = None
+    feedback_ids: list[str] = Field(default_factory=list)
+    requirement_ids: list[str] = Field(default_factory=list)
+    task_ids: list[str] = Field(default_factory=list)
+    meeting_ids: list[str] = Field(default_factory=list)
+    source_refs: list[SourceRef] = Field(default_factory=list)
+    labels: list[str] = Field(default_factory=list)
+    extra: dict = Field(default_factory=dict)
+    submitted_by: str = "maintainer"
+
+
+class Sprint(BaseModel):
+    """迭代排期：一组任务的排期容器，按时间轴跟踪。"""
+
+    model_config = ConfigDict(extra="ignore")
+
+    id: str
+    workspace_id: str = Field(default=DEFAULT_WORKSPACE_ID, description="所属工作区")
+    name: str = Field(min_length=1, description="迭代名，如 Sprint 24-08")
+    goal: str = ""
+    start_date: datetime
+    end_date: datetime
+    status: SprintStatus = "planned"
+    created_at: datetime
+
+
+class SprintCreate(BaseModel):
+    """创建迭代（入口数据）。"""
+
+    model_config = ConfigDict(extra="ignore")
+
+    name: str = Field(min_length=1, description="迭代名，如 Sprint 24-08")
+    goal: str = ""
+    start_date: datetime
+    end_date: datetime
+    status: SprintStatus = "planned"
+    submitted_by: str = "maintainer"
+
+
+class TaskLog(BaseModel):
+    """任务/缺陷活动流：状态流转/指派/排期变更/方案上传留痕。"""
+
+    model_config = ConfigDict(extra="ignore")
+
+    id: int
+    workspace_id: str = Field(default=DEFAULT_WORKSPACE_ID, description="所属工作区")
+    task_id: str
+    entity: str = "task"  # task | bug
+    action: str = "created"
+    from_status: str | None = None
+    to_status: str | None = None
+    field: str | None = None
+    old_value: dict | list | str | int | float | bool | None = None
+    new_value: dict | list | str | int | float | bool | None = None
+    actor: str
+    comment: str | None = None
+    created_at: datetime
+
+
+class MeetingMinutes(BaseModel):
+    """会议纪要：原文存档 + 启发式提取的摘要/决议/待办，结构化沉淀。"""
+
+    model_config = ConfigDict(extra="ignore")
+
+    id: str
+    workspace_id: str = Field(default=DEFAULT_WORKSPACE_ID, description="所属工作区")
+    title: str = Field(min_length=1, description="会议主题")
+    held_at: datetime = Field(default_factory=utcnow, description="会议时间（默认提交时间）")
+    participants: list[str] = Field(default_factory=list)
+    location: str | None = None
+    recording_url: str | None = None
+    agenda: list[str] = Field(default_factory=list)
+    module: str | None = None
+    raw_text: str = Field(min_length=1, description="原始纪要全文（存档原文，不可丢失）")
+    summary: str = ""
+    decisions: list[dict] = Field(default_factory=list)
+    action_items: list[ActionItem] = Field(default_factory=list)
+    keywords: list[str] = Field(default_factory=list)
+    submitted_by: str = "maintainer"
+    source_ref: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    archived: bool = False
+    archived_at: datetime | None = None
+    archived_by: str | None = None
+
+
+class MeetingMinutesCreate(BaseModel):
+    """创建会议纪要（入口数据）。"""
+
+    model_config = ConfigDict(extra="ignore")
+
+    title: str = Field(min_length=1, description="会议主题")
+    held_at: datetime | None = None
+    participants: list[str] = Field(default_factory=list)
+    location: str | None = None
+    recording_url: str | None = None
+    agenda: list[str] = Field(default_factory=list)
+    module: str | None = None
+    raw_text: str = Field(min_length=1, description="原始纪要全文")
+    summary: str = ""
+    decisions: list[dict] = Field(default_factory=list)
+    action_items: list[ActionItem] = Field(default_factory=list)
+    keywords: list[str] = Field(default_factory=list)
+    submitted_by: str = "maintainer"
+    source_ref: str | None = None
+
+
+class Attachment(BaseModel):
+    """通用附件/链接登记：方案上传自动管理链接，跨 task/bug/meeting 复用。"""
+
+    model_config = ConfigDict(extra="ignore")
+
+    id: str
+    workspace_id: str = Field(default=DEFAULT_WORKSPACE_ID, description="所属工作区")
+    entity: str  # task | bug | meeting | requirement
+    entity_id: str
+    url: str = Field(min_length=1, description="文件/链接地址")
+    name: str = ""
+    mime: str | None = None
+    size: int = 0
+    uploaded_by: str = "maintainer"
+    created_at: datetime

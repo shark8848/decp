@@ -14,12 +14,23 @@ from collections import Counter, defaultdict
 from typing import Any
 
 from decp_core.models import (
+    ActionItem,
     AnalysisResult,
+    Attachment,
+    Bug,
+    BugCreate,
     Feedback,
     FeedbackCreate,
+    MeetingMinutes,
+    MeetingMinutesCreate,
     Requirement,
     RequirementCreate,
     SourceRef,
+    Sprint,
+    SprintCreate,
+    Task,
+    TaskCreate,
+    TaskLog,
     new_id,
     utcnow,
 )
@@ -798,3 +809,945 @@ class WorkspaceService:
         await self._storage.member_upsert(
             default_workspace_id, default_user_id, role="owner", status="approved",
         )
+
+
+# ===========================================================================
+# 团队任务 / 缺陷 / 会议纪要 / 迭代 / 附件（v2 扩展）
+# ===========================================================================
+
+_TASK_STATUSES = ("backlog", "todo", "in_progress", "review", "blocked", "done", "cancelled")
+_BUG_TRANSITIONS: dict[str, set[str]] = {
+    "new":          {"confirmed", "wonfix", "closed"},
+    "confirmed":    {"in_progress", "wonfix", "closed"},
+    "in_progress":  {"fixed", "wonfix", "closed"},
+    "fixed":        {"verified", "in_progress", "closed"},   # 允许回归
+    "verified":     {"closed", "in_progress"},               # 允许 reopen
+    "closed":       {"in_progress"},                          # 允许 reopen
+    "wonfix":       {"in_progress", "closed"},               # 允许 reopen
+}
+
+
+class TaskService:
+    """团队任务：看板排期与跟踪、流转审计、方案链接管理。"""
+
+    ALLOWED_UPDATE = {
+        "title", "description", "module", "priority", "assignee",
+        "sprint_id", "planned_start", "due_at", "estimate", "labels", "extra",
+    }
+
+    def __init__(self, storage: StorageBackend) -> None:
+        self._storage = storage
+
+    async def _member_approved(self, workspace_id: str, user_id: str) -> bool:
+        m = await self._storage.member_get(workspace_id, user_id)
+        return m is not None and m.get("status") == "approved"
+
+    async def create(self, data: TaskCreate, *, workspace_id: str = "default") -> Task:
+        """创建任务。校验：assignee 须为 workspace 已批准成员；requirement 类型须引用已审核需求。"""
+        if data.assignee and not await self._member_approved(workspace_id, data.assignee):
+            raise ValueError(f"责任人 {data.assignee} 不是工作区已批准成员")
+        if data.type == "requirement" and data.requirement_id:
+            req = await self._storage.requirement_get(data.requirement_id, workspace_id=workspace_id)
+            if req is None:
+                raise ValueError(f"关联需求不存在: {data.requirement_id}")
+            if req.get("status") not in ("accepted", "merged"):
+                raise ValueError(
+                    f"仅已审核（accepted/merged）需求可转任务，当前: {req.get('status')}"
+                )
+        now = utcnow()
+        tid = new_id("ts")
+        rec = _drop_identity(data.model_dump())
+        rec.update({
+            "id": tid, "workspace_id": workspace_id,
+            "status": "backlog", "order": 0,
+            "created_at": now, "updated_at": now, "archived": False,
+        })
+        await self._storage.task_insert(rec)
+        await self._storage.log_insert({
+            "workspace_id": workspace_id, "task_id": tid, "entity": "task",
+            "action": "created", "actor": data.submitted_by, "created_at": now,
+        })
+        _logger.info("task.created id=%s title=%.60s type=%s assignee=%s ws=%s",
+                     tid, data.title, data.type, data.assignee, workspace_id)
+        return Task.model_validate(rec)
+
+    async def get(self, tid: str, *, include_log: bool = True, workspace_id: str = "default") -> Task | None:
+        row = await self._storage.task_get(tid, workspace_id=workspace_id)
+        if row is None:
+            return None
+        return Task.model_validate(row)
+
+    async def list(self, *, status: str | None = None, type_: str | None = None,
+                   sprint_id: str | None = None, assignee: str | None = None,
+                   limit: int = 100, offset: int = 0, include_archived: bool = False,
+                   workspace_id: str = "default") -> list[Task]:
+        rows = await self._storage.task_list(
+            status=status, type_=type_, sprint_id=sprint_id, assignee=assignee,
+            limit=limit, offset=offset, include_archived=include_archived,
+            workspace_id=workspace_id,
+        )
+        return [Task.model_validate(r) for r in rows]
+
+    async def update(self, tid: str, fields: dict[str, Any], *, actor: str,
+                     workspace_id: str = "default") -> Task:
+        """白名单字段更新 + 留痕（assigned/sprint_changed/due_changed/status_changed）。"""
+        cur = await self._storage.task_get(tid, workspace_id=workspace_id)
+        if cur is None:
+            raise KeyError(f"任务不存在: {tid}")
+        now = utcnow()
+        upd: dict[str, Any] = {}
+        for key, val in fields.items():
+            if key not in self.ALLOWED_UPDATE:
+                continue
+            # 规范化时间字段：ISO 字符串 → datetime（task_update 工具直传字符串时避免崩溃）
+            if key in ("planned_start", "due_at") and isinstance(val, str):
+                val = _parse_dt(val)
+            upd[key] = val
+        if "assignee" in upd and upd["assignee"] and not await self._member_approved(workspace_id, upd["assignee"]):
+            raise ValueError(f"责任人 {upd['assignee']} 不是工作区已批准成员")
+        upd["updated_at"] = now
+        await self._storage.task_update(tid, upd, workspace_id=workspace_id)
+        # 留痕（old/new 值统一转 JSON 安全类型，避免 datetime 无法序列化）
+        if "assignee" in upd and upd["assignee"] != cur.get("assignee"):
+            await self._storage.log_insert({
+                "workspace_id": workspace_id, "task_id": tid, "entity": "task",
+                "action": "assigned", "field": "assignee",
+                "old_value": cur.get("assignee"), "new_value": upd["assignee"],
+                "actor": actor, "created_at": now,
+            })
+        if "sprint_id" in upd and upd["sprint_id"] != cur.get("sprint_id"):
+            await self._storage.log_insert({
+                "workspace_id": workspace_id, "task_id": tid, "entity": "task",
+                "action": "sprint_changed", "field": "sprint_id",
+                "old_value": cur.get("sprint_id"), "new_value": upd["sprint_id"],
+                "actor": actor, "created_at": now,
+            })
+        if "due_at" in upd and upd["due_at"] != cur.get("due_at"):
+            await self._storage.log_insert({
+                "workspace_id": workspace_id, "task_id": tid, "entity": "task",
+                "action": "due_changed", "field": "due_at",
+                "old_value": _json_safe(cur.get("due_at")), "new_value": _json_safe(upd["due_at"]),
+                "actor": actor, "created_at": now,
+            })
+        return await self.get(tid, workspace_id=workspace_id)  # type: ignore[return-value]
+
+    async def move(self, tid: str, status: str, *, actor: str, order: int | None = None,
+                   comment: str | None = None, workspace_id: str = "default") -> Task:
+        """看板拖拽：状态流转 + 列内排序。blocked 强制要求 comment；自动记 started_at/done_at。"""
+        if status not in _TASK_STATUSES:
+            raise ValueError(f"未知任务状态: {status}，可选: {_TASK_STATUSES}")
+        cur = await self._storage.task_get(tid, workspace_id=workspace_id)
+        if cur is None:
+            raise KeyError(f"任务不存在: {tid}")
+        if cur.get("status") == status and order is None:
+            return Task.model_validate(cur)
+        if status == "blocked" and not comment:
+            raise ValueError("进入阻塞（blocked）须填写阻塞原因（comment）")
+        now = utcnow()
+        fields: dict[str, Any] = {"status": status, "updated_at": now}
+        if status == "in_progress" and not cur.get("started_at"):
+            fields["started_at"] = now
+        if status == "done" and not cur.get("done_at"):
+            fields["done_at"] = now
+        # reopen 语义：从 done/cancelled 回到活跃态时清空 done_at，避免卡片残留旧完成时间
+        if status in ("in_progress", "review", "blocked", "todo") and cur.get("done_at"):
+            fields["done_at"] = None
+        if order is not None:
+            fields["order"] = order
+        await self._storage.task_update(tid, fields, workspace_id=workspace_id)
+        await self._storage.log_insert({
+            "workspace_id": workspace_id, "task_id": tid, "entity": "task",
+            "action": "move", "from_status": cur.get("status"), "to_status": status,
+            "comment": comment, "actor": actor, "created_at": now,
+        })
+        return await self.get(tid, workspace_id=workspace_id)  # type: ignore[return-value]
+
+    async def reorder(self, tid: str, order: int, *, workspace_id: str = "default") -> Task:
+        row = await self._storage.task_reorder(tid, order, workspace_id=workspace_id)
+        if row is None:
+            raise KeyError(f"任务不存在: {tid}")
+        return Task.model_validate(row)
+
+    async def upload_plan(self, tid: str, url: str, *, name: str | None = None,
+                          actor: str, workspace_id: str = "default") -> Task:
+        """方案链接上传：attachment 登记 + plan_links 冗余 + task_log(plan_added)。"""
+        now = utcnow()
+        await self._storage.attachment_insert({
+            "id": new_id("at"), "workspace_id": workspace_id, "entity": "task",
+            "entity_id": tid, "url": url, "name": name or url,
+            "uploaded_by": actor, "created_at": now,
+        })
+        cur = await self._storage.task_get(tid, workspace_id=workspace_id)
+        if cur is None:
+            raise KeyError(f"任务不存在: {tid}")
+        links = list(cur.get("plan_links") or [])
+        if url not in links:
+            links.append(url)
+        await self._storage.task_update(tid, {"plan_links": links, "updated_at": now},
+                                        workspace_id=workspace_id)
+        await self._storage.log_insert({
+            "workspace_id": workspace_id, "task_id": tid, "entity": "task",
+            "action": "plan_added", "field": "plan_links",
+            "old_value": None, "new_value": url, "actor": actor, "created_at": now,
+        })
+        return await self.get(tid, workspace_id=workspace_id)  # type: ignore[return-value]
+
+    async def link_requirement(self, rid: str, *, actor: str,
+                               workspace_id: str = "default") -> Task:
+        """需求 → 开发任务：仅 accepted/merged 可转；继承 title/priority/module/tags/feedback_ids。"""
+        req = await self._storage.requirement_get(rid, workspace_id=workspace_id)
+        if req is None:
+            raise KeyError(f"需求不存在: {rid}")
+        if req.get("status") not in ("accepted", "merged"):
+            raise ValueError(f"仅已审核（accepted/merged）需求可转任务，当前: {req.get('status')}")
+        # RequirementOrm.feedback_ids 存纯字符串 id（非 SourceRef dict），直接继承
+        fb_ids = [fid for fid in (req.get("feedback_ids") or []) if isinstance(fid, str)]
+        return await self.create(TaskCreate(
+            type="requirement", title=req["title"], description=req.get("description", ""),
+            module=req.get("module"), priority=req.get("priority", "P2"),
+            requirement_id=rid, feedback_ids=fb_ids, labels=req.get("tags", []),
+            source_refs=[SourceRef(ref_type="requirement", ref_id=rid,
+                                   detail=f"需求 {rid} 转开发任务")],
+            submitted_by=actor,
+        ), workspace_id=workspace_id)
+
+    async def link_bug(self, tid: str, bug_id: str, *, workspace_id: str = "default") -> Task:
+        """任务关联缺陷（双向：task.bug_ids + bug.task_ids）。"""
+        task = await self._storage.task_get(tid, workspace_id=workspace_id)
+        if task is None:
+            raise KeyError(f"任务不存在: {tid}")
+        bug = await self._storage.bug_get(bug_id, workspace_id=workspace_id)
+        if bug is None:
+            raise KeyError(f"缺陷不存在: {bug_id}")
+        bug_ids = list(task.get("bug_ids") or [])
+        if bug_id not in bug_ids:
+            bug_ids.append(bug_id)
+        await self._storage.task_update(tid, {"bug_ids": bug_ids}, workspace_id=workspace_id)
+        t_ids = list(bug.get("task_ids") or [])
+        if tid not in t_ids:
+            t_ids.append(tid)
+        await self._storage.bug_update(bug_id, {"task_ids": t_ids}, workspace_id=workspace_id)
+        return await self.get(tid, workspace_id=workspace_id)  # type: ignore[return-value]
+
+    async def board(self, *, status: str | None = None, sprint_id: str | None = None,
+                    assignee: str | None = None, type_: str | None = None,
+                    include_bugs: bool = True, workspace_id: str = "default") -> dict:
+        """看板视图：按列分组返回，列内按 order 排序；include_bugs 内嵌关联缺陷子卡片。"""
+        rows = await self._storage.task_list(
+            status=status, sprint_id=sprint_id, assignee=assignee, type_=type_,
+            limit=1000, offset=0, workspace_id=workspace_id,
+        )
+        columns: dict[str, list[dict]] = {s: [] for s in _TASK_STATUSES}
+        bug_cache: dict[str, dict] = {}
+        if include_bugs:
+            all_bug_ids = sorted({b for r in rows for b in (r.get("bug_ids") or [])})
+            if all_bug_ids:
+                for b in await self._storage.bug_get_many(all_bug_ids, workspace_id=workspace_id):
+                    bug_cache[b["id"]] = b
+        for r in rows:
+            card = {
+                "id": r["id"], "title": r["title"], "type": r["type"],
+                "priority": r["priority"], "assignee": r["assignee"],
+                "sprint_id": r["sprint_id"], "due_at": r["due_at"],
+                "labels": r.get("labels") or [], "status": r["status"],
+                "has_plan": bool(r.get("plan_links")),
+            }
+            if include_bugs:
+                card["bugs"] = [
+                    {
+                        "id": b["id"], "title": b["title"], "status": b["status"],
+                        "severity": b["severity"],
+                    }
+                    for bgid in (r.get("bug_ids") or [])
+                    if (b := bug_cache.get(bgid))
+                ]
+            columns.get(r["status"], []).append(card)
+        counts = {s: len(columns[s]) for s in _TASK_STATUSES}
+        return {"columns": columns, "counts": counts}
+
+    async def log(self, tid: str, *, workspace_id: str = "default") -> list[TaskLog]:
+        rows = await self._storage.log_list(tid, entity="task", workspace_id=workspace_id)
+        return [TaskLog.model_validate(r) for r in rows]
+
+    async def archive(self, tid: str, archived_by: str = "maintainer",
+                      workspace_id: str = "default") -> Task:
+        cur = await self._storage.task_get(tid, workspace_id=workspace_id)
+        if cur is None:
+            raise KeyError(f"任务不存在: {tid}")
+        if cur.get("archived"):
+            return Task.model_validate(cur)
+        now = utcnow()
+        await self._storage.task_update(
+            tid, {"archived": True, "archived_at": now, "archived_by": archived_by},
+            workspace_id=workspace_id,
+        )
+        return await self.get(tid, workspace_id=workspace_id)  # type: ignore[return-value]
+
+    async def restore(self, tid: str, workspace_id: str = "default") -> Task:
+        cur = await self._storage.task_get(tid, workspace_id=workspace_id)
+        if cur is None:
+            raise KeyError(f"任务不存在: {tid}")
+        if not cur.get("archived"):
+            return Task.model_validate(cur)
+        await self._storage.task_update(
+            tid, {"archived": False, "archived_at": None, "archived_by": None},
+            workspace_id=workspace_id,
+        )
+        return await self.get(tid, workspace_id=workspace_id)  # type: ignore[return-value]
+
+    async def count(self, *, status: str | None = None, workspace_id: str = "default") -> int:
+        return await self._storage.task_count(status=status, workspace_id=workspace_id)
+
+
+class BugService:
+    """缺陷：独立全生命周期管理，多域关联（反馈/需求/任务/会议）。"""
+
+    ALLOWED_UPDATE = {
+        "title", "description", "module", "severity", "priority",
+        "environment", "reproduce_steps", "expected", "actual",
+        "assignee", "sprint_id", "due_at", "fix_version", "labels", "extra",
+    }
+    TRANSITIONS = _BUG_TRANSITIONS
+
+    def __init__(self, storage: StorageBackend) -> None:
+        self._storage = storage
+
+    async def _member_approved(self, workspace_id: str, user_id: str) -> bool:
+        m = await self._storage.member_get(workspace_id, user_id)
+        return m is not None and m.get("status") == "approved"
+
+    async def create(self, data: BugCreate, *, workspace_id: str = "default") -> Bug:
+        if data.assignee and not await self._member_approved(workspace_id, data.assignee):
+            raise ValueError(f"处理人 {data.assignee} 不是工作区已批准成员")
+        now = utcnow()
+        bgid = new_id("bg")
+        rec = _drop_identity(data.model_dump())
+        rec.update({
+            "id": bgid, "workspace_id": workspace_id,
+            "status": "new", "created_at": now, "updated_at": now, "archived": False,
+        })
+        await self._storage.bug_insert(rec)
+        # 反向同步：创建时带 task_ids → 写回 task.bug_ids（保持双向引用一致）
+        for tid in data.task_ids or []:
+            task = await self._storage.task_get(tid, workspace_id=workspace_id)
+            if task is None:
+                continue
+            bug_ids = list(task.get("bug_ids") or [])
+            if bgid not in bug_ids:
+                await self._storage.task_update(tid, {"bug_ids": bug_ids + [bgid]},
+                                                workspace_id=workspace_id)
+        await self._storage.log_insert({
+            "workspace_id": workspace_id, "task_id": bgid, "entity": "bug",
+            "action": "created", "actor": data.submitted_by, "created_at": now,
+        })
+        _logger.info("bug.created id=%s title=%.60s severity=%s channel=%s ws=%s",
+                     bgid, data.title, data.severity, data.channel, workspace_id)
+        return Bug.model_validate(rec)
+
+    async def get(self, bgid: str, *, include_relations: bool = True,
+                  workspace_id: str = "default") -> Bug | None:
+        row = await self._storage.bug_get(bgid, workspace_id=workspace_id)
+        if row is None:
+            return None
+        return Bug.model_validate(row)
+
+    async def search(self, *, status: str | None = None, severity: str | None = None,
+                     priority: str | None = None, assignee: str | None = None,
+                     module: str | None = None, channel: str | None = None,
+                     limit: int = 100, offset: int = 0, include_archived: bool = False,
+                     workspace_id: str = "default") -> list[Bug]:
+        rows = await self._storage.bug_list(
+            status=status, severity=severity, priority=priority, assignee=assignee,
+            module=module, channel=channel, limit=limit, offset=offset,
+            include_archived=include_archived, workspace_id=workspace_id,
+        )
+        return [Bug.model_validate(r) for r in rows]
+
+    async def update(self, bgid: str, fields: dict[str, Any], *, actor: str,
+                     workspace_id: str = "default") -> Bug:
+        cur = await self._storage.bug_get(bgid, workspace_id=workspace_id)
+        if cur is None:
+            raise KeyError(f"缺陷不存在: {bgid}")
+        upd = {k: v for k, v in fields.items() if k in self.ALLOWED_UPDATE}
+        # 规范化时间字段：ISO 字符串 → datetime
+        if "due_at" in upd and isinstance(upd["due_at"], str):
+            upd["due_at"] = _parse_dt(upd["due_at"])
+        if "assignee" in upd and upd["assignee"] and not await self._member_approved(workspace_id, upd["assignee"]):
+            raise ValueError(f"处理人 {upd['assignee']} 不是工作区已批准成员")
+        upd["updated_at"] = utcnow()
+        await self._storage.bug_update(bgid, upd, workspace_id=workspace_id)
+        return await self.get(bgid, workspace_id=workspace_id)  # type: ignore[return-value]
+
+    async def transition(self, bgid: str, status: str, *, actor: str,
+                         comment: str | None = None, workspace_id: str = "default") -> Bug:
+        """状态机流转：校验非法跳转；fixed→fixed_at；closed→closed_at；wonfix 强制原因。"""
+        cur = await self._storage.bug_get(bgid, workspace_id=workspace_id)
+        if cur is None:
+            raise KeyError(f"缺陷不存在: {bgid}")
+        if status not in self.TRANSITIONS:
+            raise ValueError(f"未知缺陷状态: {status}")
+        if status not in self.TRANSITIONS.get(cur.get("status"), set()):
+            raise ValueError(
+                f"非法状态流转: {cur.get('status')} → {status}，允许: {sorted(self.TRANSITIONS.get(cur.get('status'), set()))}"
+            )
+        if status == "wonfix" and not comment:
+            raise ValueError("标记为不修复（wonfix）须填写原因（comment）")
+        now = utcnow()
+        fields: dict[str, Any] = {"status": status, "updated_at": now}
+        if status == "fixed":
+            fields["fixed_at"] = now
+        if status == "closed":
+            fields["closed_at"] = now
+        await self._storage.bug_update(bgid, fields, workspace_id=workspace_id)
+        await self._storage.log_insert({
+            "workspace_id": workspace_id, "task_id": bgid, "entity": "bug",
+            "action": "move", "from_status": cur.get("status"), "to_status": status,
+            "comment": comment, "actor": actor, "created_at": now,
+        })
+        return await self.get(bgid, workspace_id=workspace_id)  # type: ignore[return-value]
+
+    async def link(self, bgid: str, *, feedback_ids: list[str] | None = None,
+                   requirement_ids: list[str] | None = None,
+                   task_ids: list[str] | None = None,
+                   meeting_ids: list[str] | None = None,
+                   workspace_id: str = "default") -> Bug:
+        """多域关联：四域引用逐一追加去重；task_ids 变更同步反向写 task.bug_ids。"""
+        cur = await self._storage.bug_get(bgid, workspace_id=workspace_id)
+        if cur is None:
+            raise KeyError(f"缺陷不存在: {bgid}")
+        upd: dict[str, Any] = {}
+        if feedback_ids is not None:
+            upd["feedback_ids"] = _merge_ids(cur.get("feedback_ids") or [], feedback_ids)
+        if requirement_ids is not None:
+            upd["requirement_ids"] = _merge_ids(cur.get("requirement_ids") or [], requirement_ids)
+        if meeting_ids is not None:
+            upd["meeting_ids"] = _merge_ids(cur.get("meeting_ids") or [], meeting_ids)
+        if task_ids is not None:
+            new_task_ids = _merge_ids(cur.get("task_ids") or [], task_ids)
+            upd["task_ids"] = new_task_ids
+        upd["updated_at"] = utcnow()
+        await self._storage.bug_update(bgid, upd, workspace_id=workspace_id)
+        # 反向：task.bug_ids 同步
+        for tid in task_ids or []:
+            task = await self._storage.task_get(tid, workspace_id=workspace_id)
+            if task is None:
+                continue
+            bug_ids = list(task.get("bug_ids") or [])
+            if bgid not in bug_ids:
+                await self._storage.task_update(tid, {"bug_ids": bug_ids + [bgid]},
+                                                workspace_id=workspace_id)
+        return await self.get(bgid, workspace_id=workspace_id)  # type: ignore[return-value]
+
+    async def from_feedback(self, fb: dict[str, Any], *, actor: str,
+                            workspace_id: str = "default") -> Bug:
+        """客户反馈 → 缺陷：title=content 截断，severity 由 structured.impact_severity 映射。"""
+        structured = fb.get("structured") or {}
+        sev_map = {"critical": "critical", "high": "high", "medium": "medium", "low": "low"}
+        sev = sev_map.get(str(structured.get("impact_severity", "")).lower(), "medium")
+        return await self.create(BugCreate(
+            title=(fb.get("content") or "")[:60],
+            description=fb.get("content") or "",
+            module=fb.get("module"),
+            severity=sev,  # type: ignore[arg-type]
+            channel="feedback",
+            feedback_ids=[fb["id"]],
+            source_refs=[SourceRef(ref_type="feedback", ref_id=fb["id"],
+                                   detail=f"客户反馈 {fb['id']} 转缺陷")],
+            submitted_by=actor,
+        ), workspace_id=workspace_id)
+
+    async def upload_plan(self, bgid: str, url: str, *, name: str | None = None,
+                          actor: str, workspace_id: str = "default") -> Bug:
+        now = utcnow()
+        await self._storage.attachment_insert({
+            "id": new_id("at"), "workspace_id": workspace_id, "entity": "bug",
+            "entity_id": bgid, "url": url, "name": name or url,
+            "uploaded_by": actor, "created_at": now,
+        })
+        cur = await self._storage.bug_get(bgid, workspace_id=workspace_id)
+        if cur is None:
+            raise KeyError(f"缺陷不存在: {bgid}")
+        links = list(cur.get("plan_links") or [])
+        if url not in links:
+            links.append(url)
+        await self._storage.bug_update(bgid, {"plan_links": links, "updated_at": now},
+                                       workspace_id=workspace_id)
+        await self._storage.log_insert({
+            "workspace_id": workspace_id, "task_id": bgid, "entity": "bug",
+            "action": "plan_added", "field": "plan_links",
+            "old_value": None, "new_value": url, "actor": actor, "created_at": now,
+        })
+        return await self.get(bgid, workspace_id=workspace_id)  # type: ignore[return-value]
+
+    async def count(self, *, status: str | None = None, workspace_id: str = "default") -> int:
+        return await self._storage.bug_count(status=status, workspace_id=workspace_id)
+
+    async def archive(self, bgid: str, archived_by: str = "maintainer",
+                      workspace_id: str = "default") -> Bug:
+        cur = await self._storage.bug_get(bgid, workspace_id=workspace_id)
+        if cur is None:
+            raise KeyError(f"缺陷不存在: {bgid}")
+        if cur.get("archived"):
+            return Bug.model_validate(cur)
+        now = utcnow()
+        await self._storage.bug_update(
+            bgid, {"archived": True, "archived_at": now, "archived_by": archived_by},
+            workspace_id=workspace_id,
+        )
+        return await self.get(bgid, workspace_id=workspace_id)  # type: ignore[return-value]
+
+    async def restore(self, bgid: str, workspace_id: str = "default") -> Bug:
+        cur = await self._storage.bug_get(bgid, workspace_id=workspace_id)
+        if cur is None:
+            raise KeyError(f"缺陷不存在: {bgid}")
+        if not cur.get("archived"):
+            return Bug.model_validate(cur)
+        await self._storage.bug_update(
+            bgid, {"archived": False, "archived_at": None, "archived_by": None},
+            workspace_id=workspace_id,
+        )
+        return await self.get(bgid, workspace_id=workspace_id)  # type: ignore[return-value]
+
+
+class SprintService:
+    """迭代排期：创建与查询。"""
+
+    def __init__(self, storage: StorageBackend) -> None:
+        self._storage = storage
+
+    async def create(self, data: SprintCreate, *, workspace_id: str = "default") -> Sprint:
+        if data.end_date <= data.start_date:
+            raise ValueError("迭代结束时间须晚于开始时间")
+        now = utcnow()
+        rec = _drop_identity(data.model_dump())
+        rec.update({"id": new_id("sp"), "workspace_id": workspace_id, "created_at": now})
+        await self._storage.sprint_insert(rec)
+        _logger.info("sprint.created id=%s name=%s status=%s ws=%s",
+                     rec["id"], data.name, data.status, workspace_id)
+        return Sprint.model_validate(rec)
+
+    async def list(self, *, status: str | None = None, workspace_id: str = "default") -> list[Sprint]:
+        rows = await self._storage.sprint_list(status=status, workspace_id=workspace_id)
+        return [Sprint.model_validate(r) for r in rows]
+
+
+class MeetingMinutesService:
+    """会议纪要：启发式提取（摘要/决议/待办/关键词）+ 存档 + 待办任务化。"""
+
+    DEV_KEYWORDS = ("开发", "实现", "修复", "接口", "重构", "优化", "测试", "部署", "联调",
+                    "排查", "代码", "SQL", "前端", "后端", "上线", "发布", "升级", "bug", "缺陷")
+    CHORE_KEYWORDS = ("跟进", "协调", "安排", "确认", "沟通", "对齐", "文档", "评审", "会议",
+                      "催办", "整理", "通知", "汇报", "培训")
+    TECH_DEBT_KEYWORDS = ("技术债", "重构", "架构")
+    OPS_KEYWORDS = ("活动", "运营", "配置", "数据维护")
+
+    def __init__(self, storage: StorageBackend) -> None:
+        self._storage = storage
+
+    @classmethod
+    def _classify_kind(cls, desc: str) -> str:
+        """dev / chore：强事务词（跟进/协调/安排等）优先 → chore；否则命中开发词 → dev。
+
+        歧义处理：`跟进部署安排` 含 dev 词「部署」但整体是协调动作 → chore。
+        词典权重：chore 词优先，dev 词次之。
+        """
+        d = (desc or "").lower()
+        if any(k.lower() in d for k in cls.CHORE_KEYWORDS):
+            return "chore"
+        if any(k.lower() in d for k in cls.DEV_KEYWORDS):
+            return "dev"
+        return "chore"
+
+    @classmethod
+    def _classify_type(cls, desc: str) -> str:
+        """task.type 判定：技术债词 → tech_debt；运营词 → ops；dev → project；否则 chore。"""
+        d = (desc or "").lower()
+        if any(k.lower() in d for k in cls.TECH_DEBT_KEYWORDS):
+            return "tech_debt"
+        if any(k.lower() in d for k in cls.OPS_KEYWORDS):
+            return "ops"
+        if any(k.lower() in d for k in cls.DEV_KEYWORDS):
+            return "project"
+        return "chore"
+
+    @classmethod
+    def _extract(cls, raw_text: str) -> dict:
+        """启发式提取：段头识别 → 摘要/决议/待办/关键词。"""
+        from datetime import date as _date
+
+        lines = [ln.strip() for ln in (raw_text or "").splitlines() if ln.strip()]
+        summary_parts: list[str] = []
+        decisions: list[dict] = []
+        action_items: list[ActionItem] = []
+        keywords: list[str] = []
+        section: str | None = None
+        for ln in lines:
+            # 段头识别：匹配到段头时，若同一行带内容（含冒号/内容非空），把内容归入该段
+            if any(ln.startswith(h) for h in ("决议", "结论", "决定", "Decisions", "decisions")):
+                section = "decisions"
+                _tail = ln.split("：", 1)[-1].split(":", 1)[-1].strip()
+                if _tail:
+                    decisions.append({"item": _tail, "owner": None})
+                continue
+            if any(ln.startswith(h) for h in ("待办", "行动项", "下一步", "TODO", "Action Items", "action_items")):
+                section = "action"
+                _tail = ln.split("：", 1)[-1].split(":", 1)[-1].strip()
+                if _tail and not _tail.startswith(("1.", "2.", "3.", "-", "•")):
+                    summary_parts.append(_tail)  # 段头行带的内联内容，宽松归入 summary
+                continue
+            if any(ln.startswith(h) for h in ("会议内容", "进展", "Summary", "摘要")):
+                section = "summary"
+                _tail = ln.split("：", 1)[-1].split(":", 1)[-1].strip()
+                if _tail:
+                    summary_parts.append(_tail)
+                continue
+            if section is None:
+                # 跳过字段行
+                if any(ln.startswith(h) for h in ("时间", "地点", "参会", "议程", "录屏", "主持人", "会议主题", "标题")):
+                    continue
+                if ln.startswith(("1.", "2.", "3.", "4.", "5.", "6.", "7.", "8.", "9.", "-", "•")):
+                    continue
+                summary_parts.append(ln)
+            elif section == "summary":
+                summary_parts.append(ln)
+            elif section == "decisions":
+                item = ln.lstrip("0123456789.-•。 ")
+                if item:
+                    decisions.append({"item": item, "owner": None})
+            elif section == "action":
+                item = ln.lstrip("0123456789.-•。 ")
+                if not item:
+                    continue
+                owner = _parse_owner(item)
+                due = _parse_due(item)
+                kind = cls._classify_kind(item)
+                action_items.append(ActionItem(
+                    desc=item, owner=owner, due=due, kind=kind,  # type: ignore[arg-type]
+                ))
+        # 关键词：提取较长中文词片段（简单实现：分词辅助——取含业务词的短语）
+        for ln in lines[:20]:
+            for seg in re.findall(r"[一-鿿]{2,10}", ln):
+                if seg not in keywords and len(keywords) < 10:
+                    keywords.append(seg)
+        return {
+            "summary": "；".join(summary_parts)[:2000],
+            "decisions": decisions,
+            "action_items": action_items,
+            "keywords": keywords,
+        }
+
+    async def submit(self, data: MeetingMinutesCreate, *, workspace_id: str = "default") -> MeetingMinutes:
+        extracted = self._extract(data.raw_text)
+        now = utcnow()
+        mid = new_id("mt")
+        # 显式传入的 action_items 优先；否则用启发式提取
+        action_items = data.action_items if data.action_items else extracted["action_items"]
+        rec = _drop_identity(data.model_dump())
+        # MeetingMinutesOrm 有 submitted_by 列，须保留提交者身份（勿随 _drop_identity 丢失）
+        rec["submitted_by"] = data.submitted_by or "maintainer"
+        rec.update({
+            "id": mid, "workspace_id": workspace_id,
+            "held_at": data.held_at or now,
+            "summary": data.summary or extracted["summary"],
+            "decisions": data.decisions or extracted["decisions"],
+            "action_items": [_action_item_to_json(a) for a in action_items],
+            "keywords": data.keywords or extracted["keywords"],
+            "created_at": now, "updated_at": now, "archived": False,
+        })
+        await self._storage.meeting_insert(rec)
+        _logger.info("meeting.submitted id=%s title=%.60s action_items=%d ws=%s",
+                     mid, data.title, len(action_items), workspace_id)
+        return MeetingMinutes.model_validate(rec)
+
+    async def get(self, mid: str, *, workspace_id: str = "default") -> MeetingMinutes | None:
+        row = await self._storage.meeting_get(mid, workspace_id=workspace_id)
+        if row is None:
+            return None
+        return MeetingMinutes.model_validate(row)
+
+    async def list(self, *, module: str | None = None, participant: str | None = None,
+                   limit: int = 100, offset: int = 0, include_archived: bool = False,
+                   workspace_id: str = "default") -> list[MeetingMinutes]:
+        rows = await self._storage.meeting_list(
+            module=module, participant=participant, limit=limit, offset=offset,
+            include_archived=include_archived, workspace_id=workspace_id,
+        )
+        return [MeetingMinutes.model_validate(r) for r in rows]
+
+    async def to_tasks(self, mid: str, *, actor: str, workspace_id: str = "default",
+                       dry_run: bool = False) -> list[dict]:
+        """纪要待办 → 批量任务（dry_run 预览/入库，幂等：已生成过则返回既有清单）。"""
+        m = await self._storage.meeting_get(mid, workspace_id=workspace_id)
+        if m is None:
+            raise KeyError(f"会议纪要不存在: {mid}")
+        # 幂等守卫：该会议已生成过任务则不再重复创建（防 LLM 重试/重复确认产生重复 backlog）
+        existing = await self._tasks_from_meeting(mid, workspace_id=workspace_id)
+        if existing:
+            return existing
+        task_svc = TaskService(self._storage)
+        items = m.get("action_items") or []
+        results: list[dict] = []
+        for item in items:
+            if not isinstance(item, dict) or not item.get("desc"):
+                continue
+            desc = item["desc"]
+            ttype = self._classify_type(desc)
+            owner = item.get("owner")
+            # 宽容处理：非成员 owner 不指派（写入 note），避免单条无效阻塞整批
+            assignee = None
+            note: str | None = None
+            if owner:
+                mbr = await self._storage.member_get(workspace_id, owner)
+                if mbr is not None and mbr.get("status") == "approved":
+                    assignee = owner
+                else:
+                    note = f"待办责任人：{owner}（非工作区已批准成员，未指派）"
+            plan = {
+                "type": ttype, "title": desc[:120],
+                "assignee": assignee,
+                "due_at": _due_to_datetime(item.get("due")),
+                "source_refs": [SourceRef(ref_type="meeting", ref_id=mid,
+                                          detail=f"会议 {m.get('title')} 待办")],
+                "note": note,
+            }
+            if dry_run:
+                results.append({"desc": desc, "type": ttype,
+                                "assignee": plan["assignee"], "due_at": plan["due_at"]})
+            else:
+                t = await task_svc.create(TaskCreate(
+                    type=plan["type"], title=plan["title"], assignee=plan["assignee"],
+                    due_at=plan["due_at"], source_refs=plan["source_refs"],
+                    extra={"meeting_note": note} if note else {},
+                    submitted_by=actor,
+                ), workspace_id=workspace_id)
+                results.append({"task_id": t.id, "title": t.title, "type": t.type,
+                                "status": t.status})
+        return results
+
+    async def _tasks_from_meeting(self, mid: str, *, workspace_id: str) -> list[dict]:
+        """查询某会议已生成的任务（按 source_refs 反查），供幂等守卫使用。"""
+        rows = await self._storage.task_list(limit=1000, offset=0, workspace_id=workspace_id)
+        out: list[dict] = []
+        for r in rows:
+            refs = r.get("source_refs") or []
+            if any(isinstance(s, dict) and s.get("ref_type") == "meeting" and s.get("ref_id") == mid
+                   for s in refs):
+                out.append({"task_id": r["id"], "title": r["title"], "type": r["type"],
+                            "status": r["status"]})
+        return out
+
+    async def _bugs_from_meeting(self, mid: str, *, workspace_id: str) -> list[dict]:
+        """查询某会议已生成的缺陷（按 meeting_ids 反查），供幂等守卫使用。"""
+        rows = await self._storage.bug_list(limit=1000, offset=0, workspace_id=workspace_id)
+        out: list[dict] = []
+        for r in rows:
+            if mid in (r.get("meeting_ids") or []):
+                out.append({"bug_id": r["id"], "title": r["title"], "status": r["status"]})
+        return out
+
+    async def to_bugs(self, mid: str, *, actor: str, workspace_id: str = "default",
+                      dry_run: bool = False) -> list[dict]:
+        """纪要中缺陷语义段落 → Bug（channel=meeting，幂等）。"""
+        m = await self._storage.meeting_get(mid, workspace_id=workspace_id)
+        if m is None:
+            raise KeyError(f"会议纪要不存在: {mid}")
+        # 幂等守卫：该会议已生成过缺陷则不再重复创建
+        existing = await self._bugs_from_meeting(mid, workspace_id=workspace_id)
+        if existing:
+            return existing
+        bug_svc = BugService(self._storage)
+        lines = [ln.strip() for ln in (m.get("raw_text") or "").splitlines() if ln.strip()]
+        results: list[dict] = []
+        for ln in lines:
+            if any(k in ln for k in ("发现", "存在", "报错", "异常", "bug", "BUG", "缺陷")):
+                title = ln[:60]
+                if dry_run:
+                    results.append({"title": title, "channel": "meeting"})
+                else:
+                    b = await bug_svc.create(BugCreate(
+                        title=title, description=ln, channel="meeting",
+                        meeting_ids=[mid], submitted_by=actor,
+                    ), workspace_id=workspace_id)
+                    results.append({"bug_id": b.id, "title": b.title, "status": b.status})
+        return results
+
+
+class AttachmentService:
+    """方案/附件链接登记（task/bug/meeting 复用）。"""
+
+    def __init__(self, storage: StorageBackend) -> None:
+        self._storage = storage
+
+    async def upload(self, entity: str, entity_id: str, url: str, *,
+                     name: str | None = None, mime: str | None = None,
+                     size: int = 0, actor: str = "maintainer",
+                     workspace_id: str = "default") -> Attachment:
+        if entity not in ("task", "bug", "meeting", "requirement"):
+            raise ValueError(f"不支持的实体类型: {entity}")
+        rec = {
+            "id": new_id("at"), "workspace_id": workspace_id, "entity": entity,
+            "entity_id": entity_id, "url": url, "name": name or url,
+            "mime": mime, "size": size, "uploaded_by": actor, "created_at": utcnow(),
+        }
+        await self._storage.attachment_insert(rec)
+        return Attachment.model_validate(rec)
+
+    async def list(self, entity: str, entity_id: str, *, workspace_id: str = "default") -> list[Attachment]:
+        rows = await self._storage.attachment_list(entity, entity_id, workspace_id=workspace_id)
+        return [Attachment.model_validate(r) for r in rows]
+
+
+def _parse_dt(value: Any) -> Any:
+    """ISO 时间字符串 → datetime（容错解析）；非字符串原样返回。"""
+    if not isinstance(value, str) or not value:
+        return value
+    from datetime import datetime
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return value
+
+
+_NON_STORED_FIELDS = {"submitted_by"}
+
+
+def _drop_identity(rec: dict[str, Any]) -> dict[str, Any]:
+    """剔除身份/非存储字段（submitted_by 等），避免传给 ORM 触发 invalid keyword。
+
+    身份在 task_log/created 审计中落账，不入实体行。
+    """
+    return {k: v for k, v in rec.items() if k not in _NON_STORED_FIELDS}
+
+
+def _action_item_to_json(a: ActionItem) -> dict[str, Any]:
+    """ActionItem → 可 JSON 序列化 dict：date 转 ISO 字符串。"""
+    d = a.model_dump()
+    if d.get("due") is not None:
+        d["due"] = d["due"].isoformat() if hasattr(d["due"], "isoformat") else d["due"]
+    return d
+
+
+def _json_safe(v: Any) -> Any:
+    """任意值 → JSON 可序列化：date/datetime 转 ISO 字符串；dict/list 递归。"""
+    from datetime import date, datetime
+    if isinstance(v, (date, datetime)):
+        return v.isoformat()
+    if isinstance(v, dict):
+        return {k: _json_safe(x) for k, x in v.items()}
+    if isinstance(v, (list, tuple)):
+        return [_json_safe(x) for x in v]
+    return v
+
+
+def _merge_ids(base: list[str], extra: list[str]) -> list[str]:
+    """追加去重合并 id 列表。"""
+    seen = list(base or [])
+    for x in extra or []:
+        if x not in seen:
+            seen.append(x)
+    return seen
+
+
+_OWNER_PREFIX_STOPWORDS = {
+    "技术债", "需求", "任务", "接口", "优化", "重构", "修复", "开发", "实现", "上线",
+    "跟进", "安排", "确认", "协调", "沟通", "整理", "评审", "文档", "测试", "部署",
+    "联调", "排查", "完成", "负责", "项目", "运营", "活动",
+}
+
+
+def _looks_like_name(candidate: str) -> bool:
+    """候选 owner 是否像人名：2-6 个汉字 或 3-16 个字母数字，不含时间/动作词。"""
+    if not candidate:
+        return False
+    # 时间特征排除：含「前/截止」或为单字时间词（周三/周五前等）不算人名
+    if "前" in candidate or "截止" in candidate:
+        return False
+    if re.fullmatch(r"[一-鿿]{1,4}", candidate):
+        # 排除单字时间词（周五前/三 等）
+        if candidate in ("一", "二", "三", "四", "五", "六", "日", "天"):
+            return False
+        return True
+    if re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{2,15}", candidate):
+        return True
+    return False
+
+
+def _parse_owner(text: str) -> str | None:
+    """条目内提取责任人：`（张三）` / `张三：` / `负责人:张三` / `@张三`。
+
+    - 括号内容若是时间（含 前/日/截止）或过长，则不是 owner，跳过
+    - `：` 前若非人名形态（复合动作前缀如「跟进部署安排」）则不当作 owner
+    """
+    # 1) `负责人:张三` / `负责人：张三` 显式标签优先
+    m = re.search(r"负责人[:：]\s*([一-鿿A-Za-z0-9_]{1,12})", text)
+    if m:
+        return m.group(1)
+    # 2) @张三
+    m = re.search(r"@([一-鿿A-Za-z0-9_]{1,16})", text)
+    if m:
+        return m.group(1)
+    # 3) 括号内：`（张三，周五前）` → 张三；`（周五前）` → 非人名跳过
+    m = re.search(r"[（(]([^）)]{1,12})[）)]", text)
+    if m:
+        content = m.group(1)
+        # 先尝试整体（可能是纯人名）
+        if _looks_like_name(content):
+            return content
+        # 再按分隔符拆：第一段若是人名（`张三，周五前`）→ 张三
+        parts = re.split(r"[，,、]", content)
+        if parts and _looks_like_name(parts[0].strip()):
+            return parts[0].strip()
+    # 4) `张三：完成接口` —— 冒号前缀须像人名
+    m = re.search(r"([一-鿿A-Za-z0-9_]{1,12})[:：]", text)
+    if m:
+        candidate = m.group(1)
+        if _looks_like_name(candidate) and candidate not in _OWNER_PREFIX_STOPWORDS:
+            return candidate
+    return None
+
+
+def _parse_due(text: str) -> Any:
+    """条目内提取截止：`2026-08-20` / `明天` / `本周五` / `周五前` / `下周三`。"""
+    from datetime import date as _date
+    from datetime import timedelta
+    m = re.search(r"(\d{4}-\d{1,2}-\d{1,2})", text)
+    if m:
+        return _date.fromisoformat(m.group(1))
+    if "明天" in text:
+        return _date.today() + timedelta(days=1)
+    # 下周三 / 本周五 / 周五前 / 括号内周五前 → 下一个指定的星期几
+    weekday_map = {"一": 0, "二": 1, "三": 2, "四": 3, "五": 4, "六": 5, "日": 6, "天": 6}
+    # 显式前缀：下X / 下周X / 本周X / 这X / 这周X
+    m = re.search(r"(?:下|本周|这周|这)(?:星期|周)?([一二三四五六日天])", text)
+    if not m:
+        # 裸周几 + 前：`周五前` / `周五`（要求带「前」或位于括号结尾，避免误匹配人名中的「三」）
+        m = re.search(r"([一二三四五六日天])前", text)
+        if not m:
+            m = re.search(r"[（(]([一二三四五六日天])[）)]", text)
+    if m:
+        wd = weekday_map.get(m.group(1))
+        if wd is not None:
+            today = _date.today()
+            days_ahead = (wd - today.weekday()) % 7
+            if days_ahead == 0:
+                days_ahead = 7
+            return today + timedelta(days=days_ahead)
+    return None
+
+
+def _due_to_datetime(d: Any) -> Any:
+    """date / ISO 字符串 → datetime（转任务 due_at）。"""
+    if d is None:
+        return None
+    from datetime import datetime as _dt
+    from datetime import date as _date
+    if isinstance(d, _dt):
+        return d
+    if isinstance(d, _date):
+        return _dt.combine(d, _dt.min.time())
+    if isinstance(d, str):
+        try:
+            return _dt.fromisoformat(d)
+        except ValueError:
+            return None
+    return None

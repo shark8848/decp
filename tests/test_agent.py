@@ -19,7 +19,10 @@ def _make_agent(storage, reports_dir):
 @pytest.mark.asyncio
 async def test_skill_registry(sqlite_storage):
     agent = _make_agent(sqlite_storage, str(sqlite_storage._path.parent / "reports"))
-    assert set(agent._registry.names()) == {"requirement_analysis", "query", "feedback_collect"}
+    assert set(agent._registry.names()) == {
+        "requirement_analysis", "query", "feedback_collect",
+        "task_management", "bug_management", "meeting_minutes",
+    }
     missing = await agent._registry.validate_all()
     assert missing == {}
 

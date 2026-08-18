@@ -1,4 +1,4 @@
-"""MCP 工具层测试：23 个工具注册与调用、结构化返回。"""
+"""MCP 工具层测试：54 个工具注册与调用、结构化返回。"""
 from __future__ import annotations
 
 import pytest
@@ -13,7 +13,7 @@ async def test_register_all_tools(sqlite_storage):
     tools = register_all_tools(server, sqlite_storage, str(sqlite_storage._path.parent / "reports"))
     listed = await server.list_tools()
     names = [t.name for t in listed]
-    assert len(names) == len(DecpTools.TOOL_BINDINGS) == 23
+    assert len(names) == len(DecpTools.TOOL_BINDINGS) == 54
     expected = {
         "feedback.submit", "feedback.search", "feedback.get",
         "requirement.analyze", "requirement.generate_draft", "requirement.create",
@@ -24,6 +24,21 @@ async def test_register_all_tools(sqlite_storage):
         "workspace.create", "workspace.join", "workspace.join_by_passcode",
         "workspace.approve_member", "workspace.reject_member", "workspace.list",
         "workspace.get", "workspace.members",
+        # task
+        "task.create", "task.update", "task.move", "task.board", "task.list",
+        "task.get", "task.upload_plan", "task.link_requirement", "task.link_bug",
+        "task.archive", "task.restore",
+        # bug
+        "bug.create", "bug.update", "bug.transition", "bug.search", "bug.get",
+        "bug.link", "bug.from_feedback", "bug.upload_plan", "bug.archive",
+        "bug.restore",
+        # sprint
+        "sprint.create", "sprint.list",
+        # meeting
+        "meeting.submit", "meeting.get", "meeting.list", "meeting.search",
+        "meeting.to_tasks", "meeting.to_bugs",
+        # attachment
+        "attachment.upload", "attachment.list",
     }
     assert set(names) == expected
     assert tools.tool_callable("feedback.submit") is not None

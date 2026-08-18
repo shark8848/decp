@@ -33,6 +33,18 @@ _INTENT_KEYWORDS: dict[str, tuple[str, list[str]]] = {
     "feedback_collect": ("feedback_collect", [
         "录入反馈", "提交反馈", "登记反馈", "上报反馈", "新增反馈", "客户反馈", "录入", "登记",
     ]),
+    "task_management": ("task_management", [
+        "任务", "看板", "排期", "待办", "迭代", "sprint", "开发任务", "技术债",
+        "运营任务", "事务任务", "方案链接", "负责人", "截止", "流转", "拖拽",
+        "需求转任务",
+    ]),
+    "bug_management": ("bug_management", [
+        "缺陷", "bug", "报错", "复现", "修复", "分诊", "验证", "关闭缺陷",
+        "反馈转缺陷", "故障",
+    ]),
+    "meeting_minutes": ("meeting_minutes", [
+        "会议纪要", "会议记录", "纪要", "行动项", "会议待办", "决议", "提取待办",
+    ]),
 }
 
 

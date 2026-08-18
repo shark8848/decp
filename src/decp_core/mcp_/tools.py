@@ -13,11 +13,25 @@ from mcp.server.mcpserver.context import Context
 
 from decp_core.mcp_ import utils
 from decp_core.mcp_.context_injection import resolve_identity
-from decp_core.models import FeedbackCreate, RequirementCreate, utcnow
+from decp_core.models import (
+    BugCreate,
+    FeedbackCreate,
+    MeetingMinutesCreate,
+    RequirementCreate,
+    SourceRef,
+    SprintCreate,
+    TaskCreate,
+    utcnow,
+)
 from decp_core.report import ReportService
 from decp_core.services import (
+    AttachmentService,
+    BugService,
     FeedbackService,
+    MeetingMinutesService,
     RequirementService,
+    SprintService,
+    TaskService,
     WorkspaceError,
     WorkspaceService,
 )
@@ -52,6 +66,42 @@ class DecpTools:
         "workspace.list": "workspace_list",
         "workspace.get": "workspace_get",
         "workspace.members": "workspace_members",
+        # task（团队任务看板）
+        "task.create": "task_create",
+        "task.update": "task_update",
+        "task.move": "task_move",
+        "task.board": "task_board",
+        "task.list": "task_list",
+        "task.get": "task_get",
+        "task.upload_plan": "task_upload_plan",
+        "task.link_requirement": "task_link_requirement",
+        "task.link_bug": "task_link_bug",
+        "task.archive": "task_archive",
+        "task.restore": "task_restore",
+        # bug（缺陷独立域）
+        "bug.create": "bug_create",
+        "bug.update": "bug_update",
+        "bug.transition": "bug_transition",
+        "bug.search": "bug_search",
+        "bug.get": "bug_get",
+        "bug.link": "bug_link",
+        "bug.from_feedback": "bug_from_feedback",
+        "bug.upload_plan": "bug_upload_plan",
+        "bug.archive": "bug_archive",
+        "bug.restore": "bug_restore",
+        # sprint（迭代排期）
+        "sprint.create": "sprint_create",
+        "sprint.list": "sprint_list",
+        # meeting（会议纪要）
+        "meeting.submit": "meeting_submit",
+        "meeting.get": "meeting_get",
+        "meeting.list": "meeting_list",
+        "meeting.search": "meeting_search",
+        "meeting.to_tasks": "meeting_to_tasks",
+        "meeting.to_bugs": "meeting_to_bugs",
+        # attachment（方案/附件链接）
+        "attachment.upload": "attachment_upload",
+        "attachment.list": "attachment_list",
     }
 
     def __init__(self, storage: StorageBackend, reports_dir: str) -> None:
@@ -60,6 +110,11 @@ class DecpTools:
         self.requirement = RequirementService(storage, self.feedback)
         self.workspace = WorkspaceService(storage)
         self.reports = ReportService(reports_dir)
+        self.task = TaskService(storage)
+        self.bug = BugService(storage)
+        self.sprint = SprintService(storage)
+        self.meeting = MeetingMinutesService(storage)
+        self.attachment = AttachmentService(storage)
         self._default_ensured = False
 
     async def _ensure_default(self) -> None:
@@ -502,6 +557,525 @@ class DecpTools:
         except Exception as e:  # noqa: BLE001
             return utils.error_result(f"获取成员列表失败: {e}")
 
+    # ================= task 数据域（团队任务看板） =================
+
+    async def task_create(self, title: str, type: str = "requirement",
+                          description: str = "", module: str | None = None,
+                          priority: str = "P2", assignee: str | None = None,
+                          sprint_id: str | None = None, due_at: str | None = None,
+                          requirement_id: str | None = None,
+                          labels: list[str] | None = None,
+                          ctx: Context | None = None,
+                          user_id: str | None = None, workspace_id: str | None = None) -> dict:
+        """创建团队任务（研发需求/项目/技术债/运营/事务），进入看板 backlog。"""
+        try:
+            uid, wid = await self._authorize(ctx, user_id, workspace_id)
+            t = await self.task.create(TaskCreate(
+                title=title, type=type, description=description, module=module,
+                priority=priority, assignee=assignee, sprint_id=sprint_id,
+                due_at=_parse_dt(due_at), requirement_id=requirement_id,
+                labels=labels or [], submitted_by=uid,
+            ), workspace_id=wid)
+            return utils.tool_result({"ok": True, "workspace_id": wid, "user_id": uid,
+                                      "task": t.model_dump()})
+        except WorkspaceError as e:
+            return utils.error_result(f"创建任务失败: {e}")
+        except Exception as e:  # noqa: BLE001
+            return utils.error_result(f"创建任务失败: {e}")
+
+    async def task_update(self, task_id: str, fields: dict,
+                          ctx: Context | None = None,
+                          user_id: str | None = None, workspace_id: str | None = None) -> dict:
+        """更新任务字段（白名单），留痕审计。"""
+        try:
+            uid, wid = await self._authorize(ctx, user_id, workspace_id)
+            t = await self.task.update(task_id, fields, actor=uid, workspace_id=wid)
+            return utils.tool_result({"ok": True, "workspace_id": wid, "user_id": uid,
+                                      "task": t.model_dump()})
+        except WorkspaceError as e:
+            return utils.error_result(f"更新任务失败: {e}")
+        except Exception as e:  # noqa: BLE001
+            return utils.error_result(f"更新任务失败: {e}")
+
+    async def task_move(self, task_id: str, status: str, order: int | None = None,
+                        comment: str | None = None, ctx: Context | None = None,
+                        user_id: str | None = None, workspace_id: str | None = None) -> dict:
+        """看板拖拽：状态流转（backlog/todo/in_progress/review/blocked/done/cancelled），
+        in_progress/done 自动记时间戳，blocked 须填原因。"""
+        try:
+            uid, wid = await self._authorize(ctx, user_id, workspace_id)
+            t = await self.task.move(task_id, status, actor=uid, order=order,
+                                     comment=comment, workspace_id=wid)
+            return utils.tool_result({"ok": True, "workspace_id": wid, "user_id": uid,
+                                      "task": t.model_dump()})
+        except WorkspaceError as e:
+            return utils.error_result(f"任务流转失败: {e}")
+        except Exception as e:  # noqa: BLE001
+            return utils.error_result(f"任务流转失败: {e}")
+
+    async def task_board(self, status: str | None = None, sprint_id: str | None = None,
+                         assignee: str | None = None, type: str | None = None,
+                         include_bugs: bool = True, ctx: Context | None = None,
+                         user_id: str | None = None, workspace_id: str | None = None) -> dict:
+        """看板视图：按列分组返回任务卡（类 GitHub），任务卡内嵌关联缺陷子卡片。"""
+        try:
+            uid, wid = await self._authorize(ctx, user_id, workspace_id)
+            board = await self.task.board(status=status, sprint_id=sprint_id,
+                                          assignee=assignee, type_=type,
+                                          include_bugs=include_bugs, workspace_id=wid)
+            return utils.tool_result({"ok": True, "workspace_id": wid, "user_id": uid,
+                                      "columns": board["columns"], "counts": board["counts"]})
+        except WorkspaceError as e:
+            return utils.error_result(f"获取看板失败: {e}")
+        except Exception as e:  # noqa: BLE001
+            return utils.error_result(f"获取看板失败: {e}")
+
+    async def task_list(self, status: str | None = None, type: str | None = None,
+                        sprint_id: str | None = None, assignee: str | None = None,
+                        limit: int = 50, offset: int = 0, include_archived: bool = False,
+                        ctx: Context | None = None,
+                        user_id: str | None = None, workspace_id: str | None = None) -> dict:
+        """任务列表（按状态/类型/迭代/责任人过滤）。"""
+        try:
+            uid, wid = await self._authorize(ctx, user_id, workspace_id)
+            items = await self.task.list(status=status, type_=type, sprint_id=sprint_id,
+                                         assignee=assignee, limit=limit, offset=offset,
+                                         include_archived=include_archived, workspace_id=wid)
+            return utils.tool_result({"count": len(items), "workspace_id": wid, "user_id": uid,
+                                      "items": [t.model_dump() for t in items]})
+        except WorkspaceError as e:
+            return utils.error_result(f"查询任务失败: {e}")
+        except Exception as e:  # noqa: BLE001
+            return utils.error_result(f"查询任务失败: {e}")
+
+    async def task_get(self, task_id: str, ctx: Context | None = None,
+                       user_id: str | None = None, workspace_id: str | None = None) -> dict:
+        """任务详情（含活动流）。"""
+        try:
+            uid, wid = await self._authorize(ctx, user_id, workspace_id)
+            t = await self.task.get(task_id, workspace_id=wid)
+            if t is None:
+                return utils.tool_result({"ok": False, "error": "任务不存在"}, is_error=True)
+            logs = await self.task.log(task_id, workspace_id=wid)
+            return utils.tool_result({"ok": True, "workspace_id": wid, "user_id": uid,
+                                      "task": t.model_dump(),
+                                      "logs": [l.model_dump() for l in logs]})
+        except WorkspaceError as e:
+            return utils.error_result(f"获取任务失败: {e}")
+        except Exception as e:  # noqa: BLE001
+            return utils.error_result(f"获取任务失败: {e}")
+
+    async def task_upload_plan(self, task_id: str, url: str, name: str | None = None,
+                               ctx: Context | None = None,
+                               user_id: str | None = None, workspace_id: str | None = None) -> dict:
+        """上传方案链接：自动登记附件 + 任务方案链接 + 留痕。"""
+        try:
+            uid, wid = await self._authorize(ctx, user_id, workspace_id)
+            t = await self.task.upload_plan(task_id, url, name=name, actor=uid, workspace_id=wid)
+            return utils.tool_result({"ok": True, "workspace_id": wid, "user_id": uid,
+                                      "task": t.model_dump()})
+        except WorkspaceError as e:
+            return utils.error_result(f"上传方案链接失败: {e}")
+        except Exception as e:  # noqa: BLE001
+            return utils.error_result(f"上传方案链接失败: {e}")
+
+    async def task_link_requirement(self, requirement_id: str,
+                                    ctx: Context | None = None,
+                                    user_id: str | None = None, workspace_id: str | None = None) -> dict:
+        """已审核需求 → 开发任务（一键转化，继承优先级/模块/反馈来源）。"""
+        try:
+            uid, wid = await self._authorize(ctx, user_id, workspace_id)
+            t = await self.task.link_requirement(requirement_id, actor=uid, workspace_id=wid)
+            return utils.tool_result({"ok": True, "workspace_id": wid, "user_id": uid,
+                                      "task": t.model_dump()})
+        except WorkspaceError as e:
+            return utils.error_result(f"需求转任务失败: {e}")
+        except Exception as e:  # noqa: BLE001
+            return utils.error_result(f"需求转任务失败: {e}")
+
+    async def task_link_bug(self, task_id: str, bug_id: str,
+                            ctx: Context | None = None,
+                            user_id: str | None = None, workspace_id: str | None = None) -> dict:
+        """任务关联缺陷（双向：task.bug_ids + bug.task_ids）。"""
+        try:
+            uid, wid = await self._authorize(ctx, user_id, workspace_id)
+            t = await self.task.link_bug(task_id, bug_id, workspace_id=wid)
+            return utils.tool_result({"ok": True, "workspace_id": wid, "user_id": uid,
+                                      "task": t.model_dump()})
+        except WorkspaceError as e:
+            return utils.error_result(f"关联缺陷失败: {e}")
+        except Exception as e:  # noqa: BLE001
+            return utils.error_result(f"关联缺陷失败: {e}")
+
+    async def task_archive(self, task_id: str, ctx: Context | None = None,
+                           user_id: str | None = None, workspace_id: str | None = None) -> dict:
+        """归档任务：移出活跃视图，可恢复。"""
+        try:
+            uid, wid = await self._authorize(ctx, user_id, workspace_id)
+            t = await self.task.archive(task_id, archived_by=uid, workspace_id=wid)
+            return utils.tool_result({"ok": True, "workspace_id": wid, "user_id": uid,
+                                      "task": t.model_dump()})
+        except WorkspaceError as e:
+            return utils.error_result(f"归档任务失败: {e}")
+        except Exception as e:  # noqa: BLE001
+            return utils.error_result(f"归档任务失败: {e}")
+
+    async def task_restore(self, task_id: str, ctx: Context | None = None,
+                           user_id: str | None = None, workspace_id: str | None = None) -> dict:
+        """恢复已归档任务。"""
+        try:
+            uid, wid = await self._authorize(ctx, user_id, workspace_id)
+            t = await self.task.restore(task_id, workspace_id=wid)
+            return utils.tool_result({"ok": True, "workspace_id": wid, "user_id": uid,
+                                      "task": t.model_dump()})
+        except WorkspaceError as e:
+            return utils.error_result(f"恢复任务失败: {e}")
+        except Exception as e:  # noqa: BLE001
+            return utils.error_result(f"恢复任务失败: {e}")
+
+    # ================= bug 数据域（缺陷独立域） =================
+
+    async def bug_create(self, title: str, description: str = "", module: str | None = None,
+                         severity: str = "medium", priority: str = "P2",
+                         channel: str = "manual", environment: str | None = None,
+                         reproduce_steps: str | None = None, expected: str | None = None,
+                         actual: str | None = None, assignee: str | None = None,
+                         feedback_ids: list[str] | None = None,
+                         ctx: Context | None = None,
+                         user_id: str | None = None, workspace_id: str | None = None) -> dict:
+        """创建缺陷（独立域，含严重级/复现信息/多域关联）。"""
+        try:
+            uid, wid = await self._authorize(ctx, user_id, workspace_id)
+            b = await self.bug.create(BugCreate(
+                title=title, description=description, module=module,
+                severity=severity, priority=priority, channel=channel,
+                environment=environment, reproduce_steps=reproduce_steps,
+                expected=expected, actual=actual, assignee=assignee,
+                feedback_ids=feedback_ids or [], submitted_by=uid,
+            ), workspace_id=wid)
+            return utils.tool_result({"ok": True, "workspace_id": wid, "user_id": uid,
+                                      "bug": b.model_dump()})
+        except WorkspaceError as e:
+            return utils.error_result(f"创建缺陷失败: {e}")
+        except Exception as e:  # noqa: BLE001
+            return utils.error_result(f"创建缺陷失败: {e}")
+
+    async def bug_update(self, bug_id: str, fields: dict,
+                         ctx: Context | None = None,
+                         user_id: str | None = None, workspace_id: str | None = None) -> dict:
+        """更新缺陷字段（白名单），留痕。"""
+        try:
+            uid, wid = await self._authorize(ctx, user_id, workspace_id)
+            b = await self.bug.update(bug_id, fields, actor=uid, workspace_id=wid)
+            return utils.tool_result({"ok": True, "workspace_id": wid, "user_id": uid,
+                                      "bug": b.model_dump()})
+        except WorkspaceError as e:
+            return utils.error_result(f"更新缺陷失败: {e}")
+        except Exception as e:  # noqa: BLE001
+            return utils.error_result(f"更新缺陷失败: {e}")
+
+    async def bug_transition(self, bug_id: str, status: str, comment: str | None = None,
+                             ctx: Context | None = None,
+                             user_id: str | None = None, workspace_id: str | None = None) -> dict:
+        """缺陷状态机流转：new→confirmed→in_progress→fixed→verified→closed/wonfix。"""
+        try:
+            uid, wid = await self._authorize(ctx, user_id, workspace_id)
+            b = await self.bug.transition(bug_id, status, actor=uid, comment=comment,
+                                          workspace_id=wid)
+            return utils.tool_result({"ok": True, "workspace_id": wid, "user_id": uid,
+                                      "bug": b.model_dump()})
+        except WorkspaceError as e:
+            return utils.error_result(f"缺陷流转失败: {e}")
+        except Exception as e:  # noqa: BLE001
+            return utils.error_result(f"缺陷流转失败: {e}")
+
+    async def bug_search(self, status: str | None = None, severity: str | None = None,
+                         priority: str | None = None, assignee: str | None = None,
+                         module: str | None = None, channel: str | None = None,
+                         limit: int = 50, offset: int = 0, include_archived: bool = False,
+                         ctx: Context | None = None,
+                         user_id: str | None = None, workspace_id: str | None = None) -> dict:
+        """缺陷查询（状态/严重级/优先级/处理人/模块/渠道过滤）。"""
+        try:
+            uid, wid = await self._authorize(ctx, user_id, workspace_id)
+            items = await self.bug.search(status=status, severity=severity, priority=priority,
+                                          assignee=assignee, module=module, channel=channel,
+                                          limit=limit, offset=offset,
+                                          include_archived=include_archived, workspace_id=wid)
+            return utils.tool_result({"count": len(items), "workspace_id": wid, "user_id": uid,
+                                      "items": [b.model_dump() for b in items]})
+        except WorkspaceError as e:
+            return utils.error_result(f"查询缺陷失败: {e}")
+        except Exception as e:  # noqa: BLE001
+            return utils.error_result(f"查询缺陷失败: {e}")
+
+    async def bug_get(self, bug_id: str, ctx: Context | None = None,
+                      user_id: str | None = None, workspace_id: str | None = None) -> dict:
+        """缺陷详情（含多域关联摘要）。"""
+        try:
+            uid, wid = await self._authorize(ctx, user_id, workspace_id)
+            b = await self.bug.get(bug_id, workspace_id=wid)
+            if b is None:
+                return utils.tool_result({"ok": False, "error": "缺陷不存在"}, is_error=True)
+            return utils.tool_result({"ok": True, "workspace_id": wid, "user_id": uid,
+                                      "bug": b.model_dump()})
+        except WorkspaceError as e:
+            return utils.error_result(f"获取缺陷失败: {e}")
+        except Exception as e:  # noqa: BLE001
+            return utils.error_result(f"获取缺陷失败: {e}")
+
+    async def bug_link(self, bug_id: str, feedback_ids: list[str] | None = None,
+                       requirement_ids: list[str] | None = None,
+                       task_ids: list[str] | None = None,
+                       meeting_ids: list[str] | None = None,
+                       ctx: Context | None = None,
+                       user_id: str | None = None, workspace_id: str | None = None) -> dict:
+        """缺陷多域关联：反馈/需求/任务/会议（双向）。"""
+        try:
+            uid, wid = await self._authorize(ctx, user_id, workspace_id)
+            b = await self.bug.link(bug_id, feedback_ids=feedback_ids,
+                                    requirement_ids=requirement_ids, task_ids=task_ids,
+                                    meeting_ids=meeting_ids, workspace_id=wid)
+            return utils.tool_result({"ok": True, "workspace_id": wid, "user_id": uid,
+                                      "bug": b.model_dump()})
+        except WorkspaceError as e:
+            return utils.error_result(f"关联缺陷失败: {e}")
+        except Exception as e:  # noqa: BLE001
+            return utils.error_result(f"关联缺陷失败: {e}")
+
+    async def bug_from_feedback(self, feedback_id: str, ctx: Context | None = None,
+                                user_id: str | None = None, workspace_id: str | None = None) -> dict:
+        """客户反馈 → 缺陷（channel=feedback，保留来源关联）。"""
+        try:
+            uid, wid = await self._authorize(ctx, user_id, workspace_id)
+            fb = await self.feedback.get(feedback_id, workspace_id=wid)
+            if fb is None:
+                return utils.tool_result({"ok": False, "error": "反馈不存在"}, is_error=True)
+            b = await self.bug.from_feedback(fb.model_dump(), actor=uid, workspace_id=wid)
+            return utils.tool_result({"ok": True, "workspace_id": wid, "user_id": uid,
+                                      "bug": b.model_dump()})
+        except WorkspaceError as e:
+            return utils.error_result(f"反馈转缺陷失败: {e}")
+        except Exception as e:  # noqa: BLE001
+            return utils.error_result(f"反馈转缺陷失败: {e}")
+
+    async def bug_upload_plan(self, bug_id: str, url: str, name: str | None = None,
+                              ctx: Context | None = None,
+                              user_id: str | None = None, workspace_id: str | None = None) -> dict:
+        """上传修复方案链接（自动登记）。"""
+        try:
+            uid, wid = await self._authorize(ctx, user_id, workspace_id)
+            b = await self.bug.upload_plan(bug_id, url, name=name, actor=uid, workspace_id=wid)
+            return utils.tool_result({"ok": True, "workspace_id": wid, "user_id": uid,
+                                      "bug": b.model_dump()})
+        except WorkspaceError as e:
+            return utils.error_result(f"上传修复方案失败: {e}")
+        except Exception as e:  # noqa: BLE001
+            return utils.error_result(f"上传修复方案失败: {e}")
+
+    async def bug_archive(self, bug_id: str, ctx: Context | None = None,
+                          user_id: str | None = None, workspace_id: str | None = None) -> dict:
+        """归档缺陷。"""
+        try:
+            uid, wid = await self._authorize(ctx, user_id, workspace_id)
+            b = await self.bug.archive(bug_id, archived_by=uid, workspace_id=wid)
+            return utils.tool_result({"ok": True, "workspace_id": wid, "user_id": uid,
+                                      "bug": b.model_dump()})
+        except WorkspaceError as e:
+            return utils.error_result(f"归档缺陷失败: {e}")
+        except Exception as e:  # noqa: BLE001
+            return utils.error_result(f"归档缺陷失败: {e}")
+
+    async def bug_restore(self, bug_id: str, ctx: Context | None = None,
+                          user_id: str | None = None, workspace_id: str | None = None) -> dict:
+        """恢复已归档缺陷。"""
+        try:
+            uid, wid = await self._authorize(ctx, user_id, workspace_id)
+            b = await self.bug.restore(bug_id, workspace_id=wid)
+            return utils.tool_result({"ok": True, "workspace_id": wid, "user_id": uid,
+                                      "bug": b.model_dump()})
+        except WorkspaceError as e:
+            return utils.error_result(f"恢复缺陷失败: {e}")
+        except Exception as e:  # noqa: BLE001
+            return utils.error_result(f"恢复缺陷失败: {e}")
+
+    # ================= sprint 数据域（迭代排期） =================
+
+    async def sprint_create(self, name: str, start_date: str, end_date: str,
+                            goal: str = "", status: str = "planned",
+                            ctx: Context | None = None,
+                            user_id: str | None = None, workspace_id: str | None = None) -> dict:
+        """创建迭代排期（sprint）。"""
+        try:
+            uid, wid = await self._authorize(ctx, user_id, workspace_id)
+            sp = await self.sprint.create(SprintCreate(
+                name=name, goal=goal, start_date=_parse_dt(start_date),
+                end_date=_parse_dt(end_date), status=status, submitted_by=uid,
+            ), workspace_id=wid)
+            return utils.tool_result({"ok": True, "workspace_id": wid, "user_id": uid,
+                                      "sprint": sp.model_dump()})
+        except WorkspaceError as e:
+            return utils.error_result(f"创建迭代失败: {e}")
+        except Exception as e:  # noqa: BLE001
+            return utils.error_result(f"创建迭代失败: {e}")
+
+    async def sprint_list(self, status: str | None = None, ctx: Context | None = None,
+                          user_id: str | None = None, workspace_id: str | None = None) -> dict:
+        """迭代列表（active 优先，按结束时间升序）。"""
+        try:
+            uid, wid = await self._authorize(ctx, user_id, workspace_id)
+            items = await self.sprint.list(status=status, workspace_id=wid)
+            return utils.tool_result({"count": len(items), "workspace_id": wid, "user_id": uid,
+                                      "items": [s.model_dump() for s in items]})
+        except WorkspaceError as e:
+            return utils.error_result(f"查询迭代失败: {e}")
+        except Exception as e:  # noqa: BLE001
+            return utils.error_result(f"查询迭代失败: {e}")
+
+    # ================= meeting 数据域（会议纪要） =================
+
+    async def meeting_submit(self, title: str, raw_text: str, held_at: str | None = None,
+                             participants: list[str] | None = None,
+                             location: str | None = None, recording_url: str | None = None,
+                             agenda: list[str] | None = None, module: str | None = None,
+                             ctx: Context | None = None,
+                             user_id: str | None = None, workspace_id: str | None = None) -> dict:
+        """提交会议纪要原文：启发式提取摘要/决议/待办/关键词并结构化存档。"""
+        try:
+            uid, wid = await self._authorize(ctx, user_id, workspace_id)
+            m = await self.meeting.submit(MeetingMinutesCreate(
+                title=title, raw_text=raw_text, held_at=_parse_dt(held_at),
+                participants=participants or [], location=location,
+                recording_url=recording_url, agenda=agenda or [], module=module,
+                submitted_by=uid,
+            ), workspace_id=wid)
+            return utils.tool_result({"ok": True, "workspace_id": wid, "user_id": uid,
+                                      "meeting": m.model_dump()})
+        except WorkspaceError as e:
+            return utils.error_result(f"提交会议纪要失败: {e}")
+        except Exception as e:  # noqa: BLE001
+            return utils.error_result(f"提交会议纪要失败: {e}")
+
+    async def meeting_get(self, meeting_id: str, ctx: Context | None = None,
+                          user_id: str | None = None, workspace_id: str | None = None) -> dict:
+        """获取会议纪要详情。"""
+        try:
+            uid, wid = await self._authorize(ctx, user_id, workspace_id)
+            m = await self.meeting.get(meeting_id, workspace_id=wid)
+            if m is None:
+                return utils.tool_result({"ok": False, "error": "会议纪要不存在"}, is_error=True)
+            return utils.tool_result({"ok": True, "workspace_id": wid, "user_id": uid,
+                                      "meeting": m.model_dump()})
+        except WorkspaceError as e:
+            return utils.error_result(f"获取会议纪要失败: {e}")
+        except Exception as e:  # noqa: BLE001
+            return utils.error_result(f"获取会议纪要失败: {e}")
+
+    async def meeting_list(self, module: str | None = None, limit: int = 50, offset: int = 0,
+                           include_archived: bool = False, ctx: Context | None = None,
+                           user_id: str | None = None, workspace_id: str | None = None) -> dict:
+        """会议纪要列表（按模块过滤）。"""
+        try:
+            uid, wid = await self._authorize(ctx, user_id, workspace_id)
+            items = await self.meeting.list(module=module, limit=limit, offset=offset,
+                                            include_archived=include_archived, workspace_id=wid)
+            return utils.tool_result({"count": len(items), "workspace_id": wid, "user_id": uid,
+                                      "items": [m.model_dump() for m in items]})
+        except WorkspaceError as e:
+            return utils.error_result(f"查询会议纪要失败: {e}")
+        except Exception as e:  # noqa: BLE001
+            return utils.error_result(f"查询会议纪要失败: {e}")
+
+    async def meeting_search(self, module: str | None = None, participant: str | None = None,
+                             limit: int = 50, offset: int = 0, ctx: Context | None = None,
+                             user_id: str | None = None, workspace_id: str | None = None) -> dict:
+        """会议纪要检索（模块/参与人过滤）。"""
+        try:
+            uid, wid = await self._authorize(ctx, user_id, workspace_id)
+            items = await self.meeting.list(module=module, participant=participant,
+                                            limit=limit, offset=offset, workspace_id=wid)
+            return utils.tool_result({"count": len(items), "workspace_id": wid, "user_id": uid,
+                                      "items": [m.model_dump() for m in items]})
+        except WorkspaceError as e:
+            return utils.error_result(f"检索会议纪要失败: {e}")
+        except Exception as e:  # noqa: BLE001
+            return utils.error_result(f"检索会议纪要失败: {e}")
+
+    async def meeting_to_tasks(self, meeting_id: str, dry_run: bool = True,
+                               ctx: Context | None = None,
+                               user_id: str | None = None, workspace_id: str | None = None) -> dict:
+        """会议待办 → 批量任务（dry_run 预览/入库）。"""
+        try:
+            uid, wid = await self._authorize(ctx, user_id, workspace_id)
+            results = await self.meeting.to_tasks(meeting_id, actor=uid, workspace_id=wid,
+                                                  dry_run=dry_run)
+            return utils.tool_result({"ok": True, "workspace_id": wid, "user_id": uid,
+                                      "dry_run": dry_run, "count": len(results),
+                                      "items": results})
+        except WorkspaceError as e:
+            return utils.error_result(f"纪要转任务失败: {e}")
+        except Exception as e:  # noqa: BLE001
+            return utils.error_result(f"纪要转任务失败: {e}")
+
+    async def meeting_to_bugs(self, meeting_id: str, dry_run: bool = True,
+                              ctx: Context | None = None,
+                              user_id: str | None = None, workspace_id: str | None = None) -> dict:
+        """纪要中的缺陷描述 → 批量缺陷（dry_run 预览/入库）。"""
+        try:
+            uid, wid = await self._authorize(ctx, user_id, workspace_id)
+            results = await self.meeting.to_bugs(meeting_id, actor=uid, workspace_id=wid,
+                                                 dry_run=dry_run)
+            return utils.tool_result({"ok": True, "workspace_id": wid, "user_id": uid,
+                                      "dry_run": dry_run, "count": len(results),
+                                      "items": results})
+        except WorkspaceError as e:
+            return utils.error_result(f"纪要转缺陷失败: {e}")
+        except Exception as e:  # noqa: BLE001
+            return utils.error_result(f"纪要转缺陷失败: {e}")
+
+    # ================= attachment 数据域（方案/附件链接） =================
+
+    async def attachment_upload(self, entity: str, entity_id: str, url: str,
+                                name: str | None = None, mime: str | None = None,
+                                size: int = 0, ctx: Context | None = None,
+                                user_id: str | None = None, workspace_id: str | None = None) -> dict:
+        """通用方案/附件链接上传登记（task/bug/meeting/requirement 复用）。"""
+        try:
+            uid, wid = await self._authorize(ctx, user_id, workspace_id)
+            at = await self.attachment.upload(entity, entity_id, url, name=name,
+                                              mime=mime, size=size, actor=uid, workspace_id=wid)
+            return utils.tool_result({"ok": True, "workspace_id": wid, "user_id": uid,
+                                      "attachment": at.model_dump()})
+        except WorkspaceError as e:
+            return utils.error_result(f"上传附件链接失败: {e}")
+        except Exception as e:  # noqa: BLE001
+            return utils.error_result(f"上传附件链接失败: {e}")
+
+    async def attachment_list(self, entity: str, entity_id: str,
+                              ctx: Context | None = None,
+                              user_id: str | None = None, workspace_id: str | None = None) -> dict:
+        """某实体的附件/方案链接列表。"""
+        try:
+            uid, wid = await self._authorize(ctx, user_id, workspace_id)
+            items = await self.attachment.list(entity, entity_id, workspace_id=wid)
+            return utils.tool_result({"count": len(items), "workspace_id": wid, "user_id": uid,
+                                      "items": [a.model_dump() for a in items]})
+        except WorkspaceError as e:
+            return utils.error_result(f"查询附件链接失败: {e}")
+        except Exception as e:  # noqa: BLE001
+            return utils.error_result(f"查询附件链接失败: {e}")
+
+
+def _parse_dt(value: str | None):
+    """ISO 时间字符串 → datetime（容错解析）。"""
+    if not value:
+        return None
+    from datetime import datetime
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
 
 def register_all_tools(server, storage: StorageBackend, reports_dir: str) -> DecpTools:
     """把 DecpTools 的全部方法注册为 MCP tools，返回实例供数字员工 Skill 直调。
@@ -542,4 +1116,40 @@ _TOOL_DESCS: dict[str, str] = {
     "workspace.list": "我的 workspace 列表（本人创建或已批准加入的）",
     "workspace.get": "获取 workspace 详情（仅本人 workspace 可查，passcode 仅 owner 可见）",
     "workspace.members": "成员列表（仅本人 workspace 可查）",
+    # task
+    "task.create": "创建团队任务（研发需求/项目/技术债/运营/事务），进入看板 backlog；assignee 须为工作区已批准成员",
+    "task.update": "更新任务字段（白名单：标题/描述/优先级/责任人/迭代/计划时间/标签等），留痕审计",
+    "task.move": "看板拖拽：状态流转 backlog/todo/in_progress/review/blocked/done/cancelled，in_progress/done 自动记时间戳，blocked 须填原因",
+    "task.board": "看板视图：按列分组返回任务卡（类 GitHub），可按迭代/责任人/类型过滤，任务卡内嵌关联缺陷子卡片",
+    "task.list": "任务列表（状态/类型/迭代/责任人过滤，include_archived 含已归档）",
+    "task.get": "任务详情（含活动流 task_log 与方案链接）",
+    "task.upload_plan": "上传方案链接：自动登记附件 + 任务方案链接 + 留痕",
+    "task.link_requirement": "已审核需求（accepted/merged）→ 开发任务，继承优先级/模块/反馈来源",
+    "task.link_bug": "任务关联缺陷（双向：task.bug_ids + bug.task_ids）",
+    "task.archive": "归档任务：移出活跃视图，可恢复",
+    "task.restore": "恢复已归档任务",
+    # bug
+    "bug.create": "创建缺陷（独立域：严重级/复现信息/环境/多域关联）",
+    "bug.update": "更新缺陷字段（白名单），留痕",
+    "bug.transition": "缺陷状态机流转：new→confirmed→in_progress→fixed→verified→closed/wonfix，wonfix 须填原因",
+    "bug.search": "缺陷查询（状态/严重级/优先级/处理人/模块/渠道过滤）",
+    "bug.get": "缺陷详情（含多域关联摘要）",
+    "bug.link": "缺陷多域关联：反馈/需求/任务/会议（双向）",
+    "bug.from_feedback": "客户反馈 → 缺陷（channel=feedback，保留来源关联）",
+    "bug.upload_plan": "上传修复方案链接（自动登记）",
+    "bug.archive": "归档缺陷",
+    "bug.restore": "恢复已归档缺陷",
+    # sprint
+    "sprint.create": "创建迭代排期（sprint），结束须晚于开始",
+    "sprint.list": "迭代列表（active 优先，按结束时间升序）",
+    # meeting
+    "meeting.submit": "提交会议纪要原文：启发式提取摘要/决议/待办（责任人/截止/开发或事务分类）/关键词并结构化存档",
+    "meeting.get": "获取会议纪要详情",
+    "meeting.list": "会议纪要列表（按模块过滤）",
+    "meeting.search": "会议纪要检索（模块/参与人过滤）",
+    "meeting.to_tasks": "会议待办 → 批量任务（dry_run=true 预览，false 入库看板 backlog）",
+    "meeting.to_bugs": "纪要中的缺陷描述 → 批量缺陷（dry_run=true 预览，false 入库）",
+    # attachment
+    "attachment.upload": "通用方案/附件链接上传登记（task/bug/meeting/requirement 复用）",
+    "attachment.list": "某实体的附件/方案链接列表",
 }

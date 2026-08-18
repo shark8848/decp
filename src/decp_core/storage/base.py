@@ -104,3 +104,119 @@ class StorageBackend(ABC):
     # ---- 数据域完整性 ----
     @abstractmethod
     async def domain_stats(self) -> dict[str, Any]: ...
+
+    # ---- task（团队任务看板） ----
+    @abstractmethod
+    async def task_insert(self, rec: dict[str, Any]) -> str: ...
+
+    @abstractmethod
+    async def task_get(self, tid: str, *, workspace_id: str = "default") -> dict[str, Any] | None: ...
+
+    @abstractmethod
+    async def task_list(
+        self, *, status: str | None = None, type_: str | None = None,
+        sprint_id: str | None = None, assignee: str | None = None,
+        limit: int = 100, offset: int = 0, include_archived: bool = False,
+        workspace_id: str = "default",
+    ) -> list[dict[str, Any]]: ...
+
+    @abstractmethod
+    async def task_update(
+        self, tid: str, fields: dict[str, Any], *, workspace_id: str = "default",
+    ) -> dict[str, Any] | None: ...
+
+    @abstractmethod
+    async def task_count(
+        self, *, status: str | None = None, include_archived: bool = False,
+        workspace_id: str = "default",
+    ) -> int: ...
+
+    @abstractmethod
+    async def task_reorder(
+        self, tid: str, order: int, *, workspace_id: str = "default",
+    ) -> dict[str, Any] | None: ...
+
+    # ---- bug（缺陷独立域） ----
+    @abstractmethod
+    async def bug_insert(self, rec: dict[str, Any]) -> str: ...
+
+    @abstractmethod
+    async def bug_get(self, bgid: str, *, workspace_id: str = "default") -> dict[str, Any] | None: ...
+
+    @abstractmethod
+    async def bug_list(
+        self, *, status: str | None = None, severity: str | None = None,
+        priority: str | None = None, assignee: str | None = None,
+        module: str | None = None, channel: str | None = None,
+        limit: int = 100, offset: int = 0, include_archived: bool = False,
+        workspace_id: str = "default",
+    ) -> list[dict[str, Any]]: ...
+
+    @abstractmethod
+    async def bug_update(
+        self, bgid: str, fields: dict[str, Any], *, workspace_id: str = "default",
+    ) -> dict[str, Any] | None: ...
+
+    @abstractmethod
+    async def bug_count(
+        self, *, status: str | None = None, include_archived: bool = False,
+        workspace_id: str = "default",
+    ) -> int: ...
+
+    @abstractmethod
+    async def bug_get_many(self, ids: list[str], *, workspace_id: str = "default") -> list[dict[str, Any]]: ...
+
+    # ---- sprint（迭代排期） ----
+    @abstractmethod
+    async def sprint_insert(self, rec: dict[str, Any]) -> str: ...
+
+    @abstractmethod
+    async def sprint_get(self, spid: str, *, workspace_id: str = "default") -> dict[str, Any] | None: ...
+
+    @abstractmethod
+    async def sprint_list(self, *, status: str | None = None, workspace_id: str = "default") -> list[dict[str, Any]]: ...
+
+    @abstractmethod
+    async def sprint_update(
+        self, spid: str, fields: dict[str, Any], *, workspace_id: str = "default",
+    ) -> dict[str, Any] | None: ...
+
+    # ---- task_log（活动流审计） ----
+    @abstractmethod
+    async def log_insert(self, rec: dict[str, Any]) -> int: ...
+
+    @abstractmethod
+    async def log_list(
+        self, task_id: str, *, entity: str = "task", workspace_id: str = "default",
+    ) -> list[dict[str, Any]]: ...
+
+    # ---- meeting_minutes（会议纪要） ----
+    @abstractmethod
+    async def meeting_insert(self, rec: dict[str, Any]) -> str: ...
+
+    @abstractmethod
+    async def meeting_get(self, mid: str, *, workspace_id: str = "default") -> dict[str, Any] | None: ...
+
+    @abstractmethod
+    async def meeting_list(
+        self, *, module: str | None = None, participant: str | None = None,
+        limit: int = 100, offset: int = 0, include_archived: bool = False,
+        workspace_id: str = "default",
+    ) -> list[dict[str, Any]]: ...
+
+    @abstractmethod
+    async def meeting_update(
+        self, mid: str, fields: dict[str, Any], *, workspace_id: str = "default",
+    ) -> dict[str, Any] | None: ...
+
+    @abstractmethod
+    async def meeting_count(self, *, include_archived: bool = False, workspace_id: str = "default") -> int: ...
+
+    # ---- attachment（方案/附件链接登记） ----
+    @abstractmethod
+    async def attachment_insert(self, rec: dict[str, Any]) -> str: ...
+
+    @abstractmethod
+    async def attachment_list(
+        self, entity: str, entity_id: str, *, workspace_id: str = "default",
+    ) -> list[dict[str, Any]]: ...

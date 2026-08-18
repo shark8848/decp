@@ -1,0 +1,18 @@
+{
+  "skill_id": "bug-management",
+  "name": "bug-management",
+  "version": "0.1.0",
+  "release_channel": "staging",
+  "compatibility": "deerflow>=0.0.1",
+  "risk_level": "low",
+  "description": "缺陷管理：缺陷全生命周期（new/confirmed/in_progress/fixed/verified/closed/wonfix）、严重级/复现信息、多域关联（反馈/需求/任务/会议）、反馈转缺陷、修复方案链接。多工作区隔离下按当前身份作用域执行。",
+  "depends_on_tools": [
+    "bug.create", "bug.update", "bug.transition", "bug.search", "bug.get",
+    "bug.link", "bug.from_feedback", "bug.upload_plan",
+    "bug.archive", "bug.restore",
+    "task.create",
+    "workspace.list", "workspace.create", "workspace.join_by_passcode"
+  ],
+  "depends_on_mcp_servers": ["decp"],
+  "tags": ["decp", "bug", "defect", "quality"]
+}

@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, BigInteger, Boolean, DateTime, Float, Integer, String, Text, Index
+from sqlalchemy import JSON, Boolean, DateTime, Float, Integer, String, Text, Index
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -138,3 +138,190 @@ class AppMetaOrm(Base):
 
     key: Mapped[str] = mapped_column(String, primary_key=True)
     value: Mapped[Any] = mapped_column(JsonType, nullable=True)
+
+
+class TaskOrm(Base):
+    """团队任务（task 数据域）：研发/项目/技术债/运营/事务，看板排期与跟踪。"""
+
+    __tablename__ = "task"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(String, nullable=False, default="default")
+    type: Mapped[str] = mapped_column(String, nullable=False, default="requirement")
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    module: Mapped[str | None] = mapped_column(String, nullable=True)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="backlog")
+    priority: Mapped[str] = mapped_column(String, nullable=False, default="P2")
+    assignee: Mapped[str | None] = mapped_column(String, nullable=True)
+    sprint_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    planned_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    estimate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    plan_links: Mapped[list] = mapped_column(JsonType, nullable=False, default=list)
+    requirement_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    feedback_ids: Mapped[list] = mapped_column(JsonType, nullable=False, default=list)
+    bug_ids: Mapped[list] = mapped_column(JsonType, nullable=False, default=list)
+    source_refs: Mapped[list] = mapped_column(JsonType, nullable=False, default=list)
+    labels: Mapped[list] = mapped_column(JsonType, nullable=False, default=list)
+    extra: Mapped[dict] = mapped_column(JsonType, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    done_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    archived_by: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    __table_args__ = (
+        Index("idx_task_workspace_status", "workspace_id", "status"),
+        Index("idx_task_type", "type"),
+        Index("idx_task_sprint", "sprint_id"),
+        Index("idx_task_assignee", "assignee"),
+        Index("idx_task_requirement", "requirement_id"),
+    )
+
+
+class BugOrm(Base):
+    """缺陷（bug 数据域）：独立全生命周期，与反馈/需求/任务/会议多域关联。"""
+
+    __tablename__ = "bug"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(String, nullable=False, default="default")
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    module: Mapped[str | None] = mapped_column(String, nullable=True)
+    severity: Mapped[str] = mapped_column(String, nullable=False, default="medium")
+    priority: Mapped[str] = mapped_column(String, nullable=False, default="P2")
+    status: Mapped[str] = mapped_column(String, nullable=False, default="new")
+    channel: Mapped[str] = mapped_column(String, nullable=False, default="manual")
+    environment: Mapped[str | None] = mapped_column(String, nullable=True)
+    reproduce_steps: Mapped[str | None] = mapped_column(Text, nullable=True)
+    expected: Mapped[str | None] = mapped_column(Text, nullable=True)
+    actual: Mapped[str | None] = mapped_column(Text, nullable=True)
+    assignee: Mapped[str | None] = mapped_column(String, nullable=True)
+    reporter: Mapped[str] = mapped_column(String, nullable=False, default="maintainer")
+    sprint_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    fix_version: Mapped[str | None] = mapped_column(String, nullable=True)
+    plan_links: Mapped[list] = mapped_column(JsonType, nullable=False, default=list)
+    feedback_ids: Mapped[list] = mapped_column(JsonType, nullable=False, default=list)
+    requirement_ids: Mapped[list] = mapped_column(JsonType, nullable=False, default=list)
+    task_ids: Mapped[list] = mapped_column(JsonType, nullable=False, default=list)
+    meeting_ids: Mapped[list] = mapped_column(JsonType, nullable=False, default=list)
+    source_refs: Mapped[list] = mapped_column(JsonType, nullable=False, default=list)
+    labels: Mapped[list] = mapped_column(JsonType, nullable=False, default=list)
+    extra: Mapped[dict] = mapped_column(JsonType, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    fixed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    archived_by: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    __table_args__ = (
+        Index("idx_bug_workspace_status", "workspace_id", "status"),
+        Index("idx_bug_severity", "severity"),
+        Index("idx_bug_assignee", "assignee"),
+        Index("idx_bug_channel", "channel"),
+    )
+
+
+class SprintOrm(Base):
+    """迭代排期（sprint 数据域）。"""
+
+    __tablename__ = "sprint"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(String, nullable=False, default="default")
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    goal: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    start_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    end_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="planned")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (Index("idx_sprint_workspace", "workspace_id"),)
+
+
+class TaskLogOrm(Base):
+    """任务/缺陷活动流（审计留痕）。"""
+
+    __tablename__ = "task_log"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    workspace_id: Mapped[str] = mapped_column(String, nullable=False, default="default")
+    task_id: Mapped[str] = mapped_column(String, nullable=False)
+    entity: Mapped[str] = mapped_column(String, nullable=False, default="task")
+    action: Mapped[str] = mapped_column(String, nullable=False, default="created")
+    from_status: Mapped[str | None] = mapped_column(String, nullable=True)
+    to_status: Mapped[str | None] = mapped_column(String, nullable=True)
+    field: Mapped[str | None] = mapped_column(String, nullable=True)
+    old_value: Mapped[Any] = mapped_column(JsonType, nullable=True)
+    new_value: Mapped[Any] = mapped_column(JsonType, nullable=True)
+    actor: Mapped[str] = mapped_column(String, nullable=False)
+    comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        Index("idx_task_log_task", "entity", "task_id"),
+        Index("idx_task_log_workspace", "workspace_id"),
+    )
+
+
+class MeetingMinutesOrm(Base):
+    """会议纪要（meeting_minutes 数据域）。"""
+
+    __tablename__ = "meeting_minutes"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(String, nullable=False, default="default")
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    held_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    participants: Mapped[list] = mapped_column(JsonType, nullable=False, default=list)
+    location: Mapped[str | None] = mapped_column(String, nullable=True)
+    recording_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    agenda: Mapped[list] = mapped_column(JsonType, nullable=False, default=list)
+    module: Mapped[str | None] = mapped_column(String, nullable=True)
+    raw_text: Mapped[str] = mapped_column(Text, nullable=False)
+    summary: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    decisions: Mapped[list] = mapped_column(JsonType, nullable=False, default=list)
+    action_items: Mapped[list] = mapped_column(JsonType, nullable=False, default=list)
+    keywords: Mapped[list] = mapped_column(JsonType, nullable=False, default=list)
+    submitted_by: Mapped[str] = mapped_column(String, nullable=False, default="maintainer")
+    source_ref: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    archived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    archived_by: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    __table_args__ = (
+        Index("idx_meeting_workspace", "workspace_id"),
+        Index("idx_meeting_held_at", "held_at"),
+    )
+
+
+class AttachmentOrm(Base):
+    """通用附件/链接登记（attachment 数据域）：方案上传自动管理。"""
+
+    __tablename__ = "attachment"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(String, nullable=False, default="default")
+    entity: Mapped[str] = mapped_column(String, nullable=False)
+    entity_id: Mapped[str] = mapped_column(String, nullable=False)
+    url: Mapped[str] = mapped_column(String, nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False, default="")
+    mime: Mapped[str | None] = mapped_column(String, nullable=True)
+    size: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    uploaded_by: Mapped[str] = mapped_column(String, nullable=False, default="maintainer")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        Index("idx_attachment_entity", "entity", "entity_id"),
+        Index("idx_attachment_workspace", "workspace_id"),
+    )

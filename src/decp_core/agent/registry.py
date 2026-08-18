@@ -5,9 +5,12 @@ from __future__ import annotations
 
 from decp_core.agent.backends import ToolBackend
 from decp_core.agent.skills.base import BaseSkill
+from decp_core.agent.skills.bug_management import BugManagementSkill
 from decp_core.agent.skills.feedback_collect import FeedbackCollectSkill
+from decp_core.agent.skills.meeting_minutes import MeetingMinutesSkill
 from decp_core.agent.skills.query import QuerySkill
 from decp_core.agent.skills.requirement_analysis import RequirementAnalysisSkill
+from decp_core.agent.skills.task_management import TaskManagementSkill
 
 
 class SkillRegistry:
@@ -24,6 +27,9 @@ class SkillRegistry:
         self.register(RequirementAnalysisSkill(self._backend))
         self.register(QuerySkill(self._backend))
         self.register(FeedbackCollectSkill(self._backend))
+        self.register(TaskManagementSkill(self._backend))
+        self.register(BugManagementSkill(self._backend))
+        self.register(MeetingMinutesSkill(self._backend))
 
     def get(self, name: str) -> BaseSkill | None:
         return self._skills.get(name)
