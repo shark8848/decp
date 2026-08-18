@@ -1,8 +1,18 @@
 # CLAUDE.md — DECP 项目
 
 > DECP（Federated Digital Employee Collaboration Platform，联邦数字员工协作平台）。
-> 面向产品需求收集、整理与分析场景，实现**企业数据层 + MCP 工具层 + 数字员工 Skill 层**三层架构。
+> 面向产品需求收集、整理与分析、团队任务管理、缺陷跟踪、会议纪要沉淀场景，实现**企业数据层 + MCP 工具层 + 数字员工 Skill 层**三层架构。
 > 权威设计输入见「核心文档」。
+
+## 0. 工作契约（PROGRESS）
+
+**`docs/PROGRESS.md` 是项目的进度权威文件，任何任务必须遵守：**
+
+1. **任务开始前**：先读取 `docs/PROGRESS.md`，确认当前状态与"遗留项"清单。若本次任务与遗留项相关，优先处理或在进度中注明承接。
+2. **任务进行中**：涉及多文件改动时用 TaskCreate 建立任务清单跟踪，每完成一步更新状态。
+3. **任务结束时**：更新 `docs/PROGRESS.md`——追加"本次完成"（含 commit、关键决策、验证结果）与"遗留项"（未竟事项 + 原因）。遗留项要可执行、可承接。
+4. **约定格式**：条目含日期（YYYY-MM-DD）便于追溯；commit 用短 hash 关联；验证结果写实测结论（如"92 passed"），不写推测。
+5. **契约边界**：PROGRESS 记录**项目级**进度与决策；个人偏好/方法论记入 Claude memory（`~/.claude/projects/*/memory/`）。
 
 ## 1. 项目定位
 
@@ -10,13 +20,13 @@
 | --- | --- |
 | 项目名 | DECP · Federated Digital Employee Collaboration Platform |
 | 包名 | `decp-core`（`src/decp_core/`） |
-| 当前阶段 | 已实现核心闭环（数据层 + MCP 层 + Skill 层），Python >= 3.12 |
-| 业务场景 | 产品需求收集、整理与分析（反馈 → 分析 → 审核 → 入库） |
+| 当前阶段 | 已实现需求闭环 + 团队任务/缺陷/会议纪要扩展，Python >= 3.12 |
+| 业务场景 | 产品需求收集、整理与分析（反馈 → 分析 → 审核 → 入库）+ 任务看板 + 缺陷跟踪 + 会议纪要沉淀 |
 | 存储后端 | SQLite（默认，零依赖）+ PostgreSQL（psycopg3，生产形态，**已实测通过**） |
 
-**场景目标**：将分散的客户反馈转换为**结构化、去重、可追溯、可审核**的产品需求，同时保留**人工决策权**与**企业数据主权**。
+**场景目标**：将分散的客户反馈转换为**结构化、去重、可追溯、可审核**的产品需求，并打通需求 → 开发任务 → 排期 → 跟踪的执行闭环，同时保留**人工决策权**与**企业数据主权**。
 
-**数据域范围（本次实现）**：`feedback`（客户反馈） + `requirement`（结构化需求）两个数据域。
+**数据域范围**：`feedback`（客户反馈）+ `requirement`（结构化需求）+ `task`（任务看板）+ `bug`（缺陷）+ `sprint`（迭代排期）+ `meeting_minutes`（会议纪要）+ `attachment`（方案/附件链接）。
 
 ## 2. 核心文档
 
@@ -29,16 +39,22 @@
 ```
 ┌─────────────────────────────────────────────┐
 │ 数字员工 Agent / Skill 层（decp_core.agent）     │
-│  · 技能：requirement_analysis / query           │
+│  · 技能：requirement_analysis / query /         │
+│    feedback_collect / task_management /        │
+│    bug_management / meeting_minutes            │
 │  · 工具调用双模式：direct（进程内）/ client（跨进程）│
 ├─────────────────────────────────────────────┤
 │ MCP 工具层（decp_core.mcp_）                    │
-│  · 15 个 tools：feedback.* / requirement.*     │
-│    / report.* / domain.*                      │
+│  · 54 个 tools：feedback.* / requirement.*     │
+│    / report.* / domain.* / workspace.* /       │
+│    task.* / bug.* / sprint.* / meeting.* /     │
+│    attachment.*                                │
 │  · 传输：stdio（默认）/ streamable http          │
 ├─────────────────────────────────────────────┤
 │ 企业数据层 Service（decp_core.services）         │
 │  · FeedbackService / RequirementService         │
+│  · TaskService / BugService / SprintService /   │
+│    MeetingMinutesService / AttachmentService    │
 │  · 整理分析：分类/去重/聚类/影响/优先级/来源校验     │
 ├─────────────────────────────────────────────┤
 │ 存储层（decp_core.storage）                     │
