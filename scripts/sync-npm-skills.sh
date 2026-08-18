@@ -6,7 +6,7 @@
 # 发布前必须执行本脚本把源 skills/ 的内容同步过去。
 #
 # 约定：
-#   - 只同步 4 个技能目录 + README.md；**不包含 decp-skills.zip**（构建产物）。
+#   - 只同步 7 个技能目录（含 soul）+ README.md；**不包含 decp-skills.zip**（构建产物）。
 #   - 源 skills/ 是唯一事实源；npm/skills/ 是被同步的镜像。
 #   - 用 rsync --delete 保证镜像完全一致（源侧删除的文件在镜像侧也删除）。
 #
@@ -23,7 +23,8 @@ SRC_DIR="$ROOT_DIR/skills"
 NPM_DIR="$ROOT_DIR/npm/skills"
 
 # 需要同步的条目（与 package-skills.sh INCLUDE_DIRS 对齐 + soul + README，天然排除 zip）
-SYNC_ITEMS=("README.md" "feedback-collect" "requirement-analysis" "requirement-query" "soul")
+SYNC_ITEMS=("README.md" "feedback-collect" "requirement-analysis" "requirement-query"
+            "task-management" "bug-management" "meeting-minutes" "soul")
 
 check_in_sync() {
     local missing=0
@@ -46,7 +47,7 @@ check_in_sync() {
         missing=1
     fi
     if [ "$missing" = 0 ]; then
-        echo "✅ npm/skills 与源 skills/ 一致（4 技能 + README，无 zip）"
+        echo "✅ npm/skills 与源 skills/ 一致（7 技能 + README，无 zip）"
         return 0
     fi
     return 1

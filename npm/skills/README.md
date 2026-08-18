@@ -9,6 +9,9 @@
 | 需求收集-整理-分析 | [requirement-analysis/](requirement-analysis/SKILL.md) | 完整闭环：反馈 → 分析 → 审核 → 入库 → 归档 | `feedback.*` + `requirement.*` + `report.*` + `workspace.*`（含成员审批） |
 | 需求与反馈查询 | [requirement-query/](requirement-query/SKILL.md) | 只读查询：反馈/需求列表、详情、查重、统计 | `feedback.search`/`get`、`requirement.search`/`get`/`find_similar`、`domain.stats`、`workspace.list`/`get`/`create`/`join`/`join_by_passcode` |
 | 客户反馈收集 | [feedback-collect/](feedback-collect/SKILL.md) | 录入反馈并结构化（自然语言/工单/Excel） | `feedback.submit`、`workspace.list`/`create`/`join`/`join_by_passcode` |
+| 团队任务管理 | [task-management/](task-management/SKILL.md) | 任务看板（backlog/todo/in_progress/review/blocked/done）、迭代排期（sprint）、技术债/运营/事务任务、需求转开发任务、方案链接、缺陷关联 | `task.*` + `sprint.*` + `bug.search` + `requirement.search` + `workspace.*` |
+| 缺陷管理 | [bug-management/](bug-management/SKILL.md) | 缺陷全生命周期（new→confirmed→in_progress→fixed→verified→closed/wonfix）、复现信息、多域关联（反馈/需求/任务/会议）、反馈转缺陷、修复方案 | `bug.*` + `task.create` + `workspace.*` |
+| 会议纪要管理 | [meeting-minutes/](meeting-minutes/SKILL.md) | 提交纪要原文并结构化提取（摘要/决议/待办/关键词）、待办批量转任务（开发/技术债/运营/事务分类）、纪要缺陷识别、纪要查询与追溯 | `meeting.*` + `task.create` + `bug.create` + `workspace.*` |
 | 数字员工人格 | [soul/](soul/SKILL.md) | 人格 / 价值观 / 行为准则：定义数字员工以何种立场工作，与流程技能配合注入 | 无（不触发，仅注入） |
 
 ## 目录规范
@@ -34,9 +37,11 @@ Agent Runtime（成熟系统）
    │ 读取 SKILL.md 理解技能流程
    ▼
 DECP MCP server（stdio / streamable http）
-   │ 23 个工具（feedback.* / requirement.* / report.* / domain.* / workspace.*）
+   │ 54 个工具（feedback.* / requirement.* / report.* / domain.* / workspace.* /
+   │            task.* / bug.* / sprint.* / meeting.* / attachment.*）
    ▼
-DECP 数据域（feedback / requirement / app_meta，SQLite / PostgreSQL）
+DECP 数据域（feedback / requirement / task / bug / sprint / meeting_minutes /
+            attachment / app_meta，SQLite / PostgreSQL）
 ```
 
 - Agent 的 skill 调度器加载本目录 SKILL.md；执行时调用 `decp` MCP server 的对应工具。
@@ -78,4 +83,4 @@ async def main():
 asyncio.run(main())
 ```
 
-AgentScope 的 skill 调度模型与 Claude Code 同构：`LocalSkillLoader` 扫描目录解析 SKILL.md，LLM 通过内置 `Skill` 查看器工具按名读取技能正文（知识包），随后调用 DECP MCP 的 23 个工具完成数据操作。详见 [docs/agentscope-integration.md](../docs/agentscope-integration.md)。
+AgentScope 的 skill 调度模型与 Claude Code 同构：`LocalSkillLoader` 扫描目录解析 SKILL.md，LLM 通过内置 `Skill` 查看器工具按名读取技能正文（知识包），随后调用 DECP MCP 的 54 个工具完成数据操作。详见 [docs/agentscope-integration.md](../docs/agentscope-integration.md)。

@@ -18,7 +18,8 @@ SKILLS_DIR="$ROOT_DIR/skills"
 ZIP_PATH="$SKILLS_DIR/decp-skills.zip"
 
 # 打入 zip 的技能目录（显式枚举，天然排除 soul）
-INCLUDE_DIRS=("feedback-collect" "requirement-analysis" "requirement-query")
+INCLUDE_DIRS=("feedback-collect" "requirement-analysis" "requirement-query"
+              "task-management" "bug-management" "meeting-minutes")
 
 check_excludes_soul() {
     if ! unzip -l "$ZIP_PATH" >/dev/null 2>&1; then
@@ -32,7 +33,7 @@ check_excludes_soul() {
         echo "$bad"
         exit 1
     fi
-    echo "✅ $ZIP_PATH 不含 soul（3 个流程技能 + README）"
+    echo "✅ $ZIP_PATH 不含 soul（6 个流程技能 + README）"
 }
 
 build() {

@@ -1,0 +1,19 @@
+{
+  "skill_id": "task-management",
+  "name": "task-management",
+  "version": "0.1.0",
+  "release_channel": "staging",
+  "compatibility": "deerflow>=0.0.1",
+  "risk_level": "low",
+  "description": "团队任务管理：任务看板（backlog/todo/in_progress/review/blocked/done）、迭代排期（sprint）、技术债/运营/事务任务、需求转开发任务、方案链接管理、缺陷关联。多工作区隔离下按当前身份作用域执行。",
+  "depends_on_tools": [
+    "task.create", "task.move", "task.board", "task.list", "task.get",
+    "task.upload_plan", "task.link_requirement", "task.link_bug",
+    "task.archive", "task.restore",
+    "sprint.create", "sprint.list",
+    "bug.search", "requirement.search",
+    "workspace.list", "workspace.create", "workspace.join_by_passcode"
+  ],
+  "depends_on_mcp_servers": ["decp"],
+  "tags": ["decp", "task", "kanban", "sprint", "tech-debt"]
+}

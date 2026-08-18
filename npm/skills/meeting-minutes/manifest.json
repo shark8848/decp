@@ -1,0 +1,17 @@
+{
+  "skill_id": "meeting-minutes",
+  "name": "meeting-minutes",
+  "version": "0.1.0",
+  "release_channel": "staging",
+  "compatibility": "deerflow>=0.0.1",
+  "risk_level": "low",
+  "description": "会议纪要管理：提交纪要原文并结构化提取（摘要/决议/待办/关键词）、待办批量转任务（开发/技术债/运营/事务分类）、纪要缺陷识别与创建缺陷单、纪要查询与来源追溯。多工作区隔离下按当前身份作用域执行。",
+  "depends_on_tools": [
+    "meeting.submit", "meeting.get", "meeting.list", "meeting.search",
+    "meeting.to_tasks", "meeting.to_bugs",
+    "task.create", "bug.create",
+    "workspace.list", "workspace.create", "workspace.join_by_passcode"
+  ],
+  "depends_on_mcp_servers": ["decp"],
+  "tags": ["decp", "meeting", "minutes", "action-items"]
+}
