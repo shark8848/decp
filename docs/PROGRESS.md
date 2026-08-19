@@ -34,6 +34,38 @@
 
 ---
 
+## 2026-08-19 · PG 部署升级（外部实例接入）
+
+### 本次完成 ✅
+
+**承接用户部署需求：对 PG 表做 schema 升级并完成生产部署验证。**
+
+| 步骤 | 内容 | 验证 |
+| --- | --- | --- |
+| 1 | **schema 升级**：12 张表 ORM↔PG 列逐表比对全部一致（task 28/bug 33/requirement 23/meeting 21 等），存量 `workspace_id` 无 NULL；`init_schema()`（create_all + `_ensure_archive_columns` + `_ensure_workspace_columns` 幂等补列）执行通过 | ✅ 12/12 一致 |
+| 2 | **默认工作区**：`WorkspaceService.ensure_default()` 创建 default workspace + default_user + owner 成员 | ✅ workspace 1 行 |
+| 3 | **PG 链路全验证**：feedback / task / bug / meeting 写入 + task.bug 双向关联 + board 内嵌缺陷，全部通过 | ✅ |
+| 4 | **部署形态**：用户确认为本机 127.0.0.1:5432 外部 PG（已升级）；`.env` 切 `DECP_STORAGE_BACKEND=postgres`，Settings 正确解析 DSN | ✅ backend=postgres |
+| 5 | **MCP server 冒烟**：http 18100 启动 → initialize → `domain.stats` 返回 `{"feedback":88,"requirement":87,"backend":"postgres","path":"127.0.0.1:5432/decp"}` | ✅ 部署链路通 |
+
+**关键决策**
+- 存量数据保留：PG 中原有 88 反馈 / 87 需求 / 1 会议，升级仅补列不删数据；部署验证写入的测试数据已清理。
+- `.env` 已从 `sqlite` 切至 `postgres`——本机运行 MCP server 时默认连 PG；如需回退改回 `sqlite` 即可（SQLite 数据仍在 `data/decp.db`）。
+
+**启动方式**
+```bash
+# stdio（MCP 客户端注入）
+python -m decp_core.mcp_.main
+# http（18100）
+python -m decp_core.mcp_.main --transport http --port 18100
+```
+
+### 遗留项 🔲（更新后，追加）
+
+6. **部署文档未同步**：`docs/docker-deployment.md` 的外部 PG 章节未记录本机进程部署路径（仅 Docker compose），可补一节"本机运行 + 外部 PG"。
+
+---
+
 ## 2026-08-18 · 团队任务看板 + 缺陷域 + 会议纪要管理
 
 ### 本次完成 ✅
