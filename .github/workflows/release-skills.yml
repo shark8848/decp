@@ -53,8 +53,10 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add npm/skills
           if ! git diff --cached --quiet; then
+            # 同步提交始终推到 main：tag 触发时 GITHUB_REF_NAME 是 v*（refs/heads 下不存在），
+            # 推 tag 名会把 commit 推到不存在的分支导致失败。检出默认分支为 main。
             git commit -m "chore: 同步 npm/skills 至源 skills/（CI 自动）"
-            git push origin "$GITHUB_REF_NAME" --force-with-lease || git push origin HEAD
+            git push origin HEAD:main
           else
             echo "npm/skills 无差异，跳过提交"
           fi
