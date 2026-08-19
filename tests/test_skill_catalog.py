@@ -48,11 +48,31 @@ def test_skill_catalog_missing_tools():
     assert missing == {}
 
 
+def test_skill_catalog_soul_excluded_from_triggers():
+    """soul 为注入型技能：不依赖工具/server，不参与可触发技能列表，missing_tools 不校验它。"""
+    cat = SkillCatalog(SKILLS_ROOT)
+    cat.scan()
+    soul = cat.get("soul")
+    assert soul is not None
+    assert soul.is_injection is True
+    # 不在可触发技能之列（不参与意图路由）
+    assert soul.name not in {s.name for s in cat.triggers()}
+    # 空可用工具集下，注入型技能也不报缺失（depends_on_tools 恒为空）
+    missing = cat.missing_tools(set())
+    assert "soul" not in missing
+    # 其余流程技能均为可触发型
+    for name in ("requirement-analysis", "requirement-query", "feedback-collect",
+                 "task-management", "bug-management", "meeting-minutes"):
+        assert cat.get(name).is_injection is False
+        assert cat.get(name).name in {s.name for s in cat.triggers()}
+
+
 def test_skill_catalog_detects_missing():
     cat = SkillCatalog(SKILLS_ROOT)
     cat.scan()
     missing = cat.missing_tools({"feedback.submit"})  # 只提供一个工具
     assert "requirement-analysis" in missing  # 其余工具缺失
+    assert "soul" not in missing  # 注入型技能跳过校验
 
 
 def _all_tools():

@@ -154,6 +154,20 @@ async def test_task_link_bug_bidirectional(sqlite_storage):
 
 
 @pytest.mark.asyncio
+async def test_task_board_embeds_bug_subcards(sqlite_storage):
+    """task.board include_bugs 经 bug_get_many 批量内嵌关联缺陷子卡片（跨后端可用）。"""
+    svc = TaskService(sqlite_storage)
+    bug_svc = BugService(sqlite_storage)
+    t = await svc.create(TaskCreate(title="修复任务"), workspace_id="default")
+    b = await bug_svc.create(BugCreate(title="登录超时", severity="high"), workspace_id="default")
+    await svc.link_bug(t.id, b.id, workspace_id="default")
+    board = await svc.board(workspace_id="default")
+    col = next(v for v in board["columns"].values() if any(c["id"] == t.id for c in v))
+    card = next(c for c in col if c["id"] == t.id)
+    assert card["bugs"] == [{"id": b.id, "title": "登录超时", "status": "new", "severity": "high"}]
+
+
+@pytest.mark.asyncio
 async def test_task_archive_restore(sqlite_storage):
     svc = TaskService(sqlite_storage)
     t = await svc.create(TaskCreate(title="待归档"), workspace_id="default")

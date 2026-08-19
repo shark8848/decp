@@ -185,3 +185,32 @@ def test_parse_due_weekday():
     assert d2 is not None and d2.weekday() == 4
     # 返回日期晚于今天
     assert d1 > date.today()
+
+
+@pytest.mark.asyncio
+async def test_meeting_search_cjk_participant_postgres():
+    """PG 后端参与人过滤（JSONB @>）。需可用 PG 环境，否则跳过。"""
+    from decp_core.config import Settings
+    from decp_core.storage import create_storage
+
+    cfg = {}
+    for k in ("pg_host", "pg_port", "pg_db", "pg_user", "pg_password"):
+        v = getattr(__import__("decp_core.config", fromlist=["settings"]).settings, k)
+        if k == "pg_password" and not v:
+            pytest.skip("未配置 DECP_PG_PASSWORD，跳过 PostgreSQL 测试")
+        cfg[k] = v
+
+    s = Settings(storage_backend="postgres", **cfg)
+    storage = create_storage(s)
+    await storage.connect()
+    await storage.init_schema()
+    svc = MeetingMinutesService(storage)
+    try:
+        await svc.submit(MeetingMinutesCreate(title="周会", participants=["张三", "李四"],
+                                             raw_text="x"), workspace_id="default")
+        items = await svc.list(participant="张三", workspace_id="default")
+        assert len(items) == 1
+        items2 = await svc.list(participant="王五", workspace_id="default")
+        assert len(items2) == 0
+    finally:
+        await storage.close()

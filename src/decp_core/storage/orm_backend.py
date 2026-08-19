@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 
 from decp_core.models import utcnow
@@ -841,16 +842,30 @@ class ORMStorage(StorageBackend):
             stmt = stmt.where(MeetingMinutesOrm.archived == False)  # noqa: E712
         if module:
             stmt = stmt.where(MeetingMinutesOrm.module == module)
+        if participant:
+            stmt = stmt.where(self._meeting_participant_cond(participant))
         stmt = stmt.order_by(MeetingMinutesOrm.held_at.desc())
         async with self._session() as session:
             rows = (await session.scalars(stmt)).all()
-        items = [self._row_to_meeting(r) for r in rows]
-        if participant:
-            # 参与人过滤：Python 层精确匹配。
-            # SQLite JSON 列存 \uXXXX 转义，LIKE 对中文失效；PG JSONB 行为不同。
-            # 会议数量级小，内存过滤可接受且跨后端一致。
-            items = [m for m in items if participant in (m.get("participants") or [])]
-        return items[offset:offset + limit]
+        return [self._row_to_meeting(r) for r in rows][offset:offset + limit]
+
+    def _meeting_participant_cond(self, participant: str):
+        """参与人过滤下沉到 SQL 层，跨后端一致。
+
+        - SQLite：participants 落地为 TEXT，JSON 序列化含 \\uXXXX 转义（中文不可见），
+          故查询词同样 JSON 转义后用 LIKE 精确匹配整段 JSON 文本（含引号边界，避免子串误命中）。
+        - PostgreSQL：participants 为 JSONB 数组，直接用 ``@>`` 数组包含判断。
+        """
+        from sqlalchemy import cast, text
+
+        if self._engine is not None and self._engine.dialect.name == "postgresql":
+            # 传 Python list（非 JSON 字符串）→ 绑定为 JSONB，右侧类型匹配 @> 操作符。
+            return MeetingMinutesOrm.participants.cast(JSONB).contains([participant])
+        # SQLite：查询词 JSON 转义（含引号）后 LIKE 匹配存储文本。
+        # 注意：不能用 escape="\\"——存储文本中的 \uXXXX 含反斜杠，设转义字符会把 \u 解释为转义序列。
+        import json as _json
+        needle = _json.dumps(participant)  # "张三" → "\"\\u5f20\\u4e09\""
+        return MeetingMinutesOrm.participants.like(f"%{needle}%")
 
     async def meeting_update(
         self, mid: str, fields: dict[str, Any], *, workspace_id: str = "default",

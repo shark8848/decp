@@ -43,6 +43,15 @@ class SkillDef:
         # AgentScope / Claude Code skill 规范：version 声明在 SKILL.md frontmatter
         return str(self.frontmatter.get("version") or self.manifest.get("version", "0.0.0"))
 
+    @property
+    def is_injection(self) -> bool:
+        """注入型技能：不依赖工具 / MCP server，仅作为人格约束注入，不参与触发路由。
+
+        约定与 skills/README.md 一致：`soul` 的 depends_on_tools / depends_on_mcp_servers
+        均为空，由外部 Runtime 注入人格，不作为可触发技能。
+        """
+        return not self.tools and not self.depends_on_mcp_servers
+
 
 def parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
     """解析 SKILL.md 的 frontmatter，返回 (字段字典, 正文)。"""
@@ -115,10 +124,22 @@ class SkillCatalog:
     def all(self) -> list[SkillDef]:
         return list(self._skills.values())
 
+    def triggers(self) -> list[SkillDef]:
+        """可触发技能列表：排除注入型技能（soul 等），供意图路由 / 外部 Runtime 使用。
+
+        注入型技能（is_injection）仅作为人格约束注入，不得被当作可触发技能参与调度。
+        """
+        return [sd for sd in self._skills.values() if not sd.is_injection]
+
     def missing_tools(self, available: set[str]) -> dict[str, list[str]]:
-        """校验技能声明依赖的工具是否可用，返回 技能名 -> 缺失工具。"""
+        """校验技能声明依赖的工具是否可用，返回 技能名 -> 缺失工具。
+
+        注入型技能（soul 等）不依赖工具，跳过校验——其 depends_on_tools 恒为空。
+        """
         out: dict[str, list[str]] = {}
         for name, sd in self._skills.items():
+            if sd.is_injection:
+                continue
             missing = [t for t in sd.tools if t not in available]
             if missing:
                 out[name] = missing

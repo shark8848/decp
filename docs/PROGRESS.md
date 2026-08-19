@@ -4,6 +4,35 @@
 
 ---
 
+## 2026-08-19 · 遗留项收敛（participant 下沉 SQL / soul 校验 / 文档清理 / 打 tag）
+
+### 本次完成 ✅
+
+**承接 2026-08-18 遗留项 1/2/6/9/10，全部闭环。测试 92 → 95 passed（含 PG 实测）。**
+
+| 遗留项 | 内容 | 验证 |
+| --- | --- | --- |
+| 1 | `meeting_list` participant 过滤从 Python 内存过滤**下沉到 SQL 层**（`_meeting_participant_cond`）：SQLite 用 JSON 转义 LIKE（`json.dumps` 匹配存储的 `\uXXXX` 形式），PG 用 JSONB `@>`（`cast(JSONB).contains([participant])` 传 list 而非字符串） | SQLite + PG 双实测通过 |
+| 2 | `bug_get_many` 确认已为 `@abstractmethod`（非可选）且 `ORMStorage` 完整实现，`__abstractmethods__` 为空；补 `test_task_board_embeds_bug_subcards` 覆盖 board include_bugs 路径 | 15 passed |
+| 6 | `SkillCatalog` 增加 `SkillDef.is_injection` 属性 + `triggers()` 方法；`missing_tools` 显式跳过注入型技能；补 `test_skill_catalog_soul_excluded_from_triggers` | 6 passed |
+| 9 | CLAUDE.md 存储层旧表述清理：目录结构更新为 `orm_backend.py`/`orm.py` 单一 ORM 实现，第 7 节重写（JsonType 切换 / build_dsn 编码 / 抽象强制实现） | — |
+| 10 | 打 tag v0.2.0 触发 `release-skills.yml`（测试 + npm/skills 同步 + 打包不含 soul + 上传 Release 资产） | 本地 `package-skills.sh --check` 预演通过 |
+
+**关键决策**
+- participant 过滤的 SQLite LIKE **不能用 `escape="\\"`**：存储文本的 `\uXXXX` 含反斜杠，设转义字符会把 `\u` 解释为转义序列导致命中失败。
+- PG JSONB `contains()` 传 **Python list**（`[participant]`）而非 JSON 字符串——传字符串会绑定为 VARCHAR，`@>` 右侧类型不匹配报错。
+- soul 注入型语义基于 manifest（`depends_on_tools`/`depends_on_mcp_servers` 均空），与 skills/README.md 约定一致。
+
+### 遗留项 🔲（更新后）
+
+1. **看板无容量/燃尽视图**——sprint 只有轻量排期，容量管理与燃尽图未实现（设计文档第 11 章已列为可调整项，属新功能，单独排期）。
+2. **会议提取为纯启发式**——未接 LLM 增强通道（设计保留：外部 LLM 提取后结构化入参 `meeting.submit`）。
+3. **`_parse_owner`/`_parse_due`/`_classify_kind` 词典硬编码**——后续可配置化（注入词典）。
+4. **bug 完整生命周期增强**：附件（截图/日志）存储、重复上报自动检测（复用 `requirement.find_similar` 相似度）未实现。
+5. **CLI/报告导出**：`task.board`/`bug.search` 导出 Excel、demo 指令样例未补充。
+
+---
+
 ## 2026-08-18 · 团队任务看板 + 缺陷域 + 会议纪要管理
 
 ### 本次完成 ✅
@@ -48,15 +77,4 @@
 
 **测试**：92 passed（原 56 + 新 27 + review 回归 9）
 
-### 遗留项 🔲（下次任务可从这里开始）
-
-1. **`meeting.search`/`meeting.list` 的 participant 过滤是 Python 层内存过滤**——数据量大时低效。待引入真正的 JSON 查询（SQLite `json_each` / PG JSONB `@>`）跨后端实现。
-2. **`task.board` 的 include_bugs 用 `bug_get_many` 批量**，但 `bug_get_many` 仍是存储层可选抽象——若后续新增存储后端需实现该方法。
-3. **看板无容量/燃尽视图**——sprint 只有轻量排期，容量管理与燃尽图未实现（设计文档第 11 章已列为可调整项）。
-4. **会议提取为纯启发式**——未接 LLM 增强通道（设计保留：外部 LLM 提取后结构化入参 `meeting.submit`）。
-5. **`_parse_owner`/`_parse_due`/`_classify_kind` 词典硬编码**——后续可配置化（注入词典）。
-6. **`skill_catalog` 的 `soul` 技能加载后未在 validate 中排除**——需确认外部 Runtime 不会把 soul 当作可触发技能（当前 manifest `depends_on_tools` 为空，行为正确，但可加显式校验）。
-7. **bug 完整生命周期增强**：附件（截图/日志）存储、重复上报自动检测（复用 `requirement.find_similar` 相似度）未实现。
-8. **CLI/报告导出**：`task.board`/`bug.search` 导出 Excel、demo 指令样例未补充。
-9. **CLAUDE.md 旧信息待清理**：第 1/3 节仍写"两个数据域"、"15 个 tools"等旧表述（本次未改）。
-10. **git 尚未打 tag**：技能发布依赖 tag 触发 CI（`release-skills.yml`），v0.2.0 待打。
+> 遗留项已迁移至 2026-08-19 条目：1/2/6/9/10 已闭环，3/4/5/7/8 继续保留。

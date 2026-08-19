@@ -69,11 +69,11 @@ src/decp_core/
   config/__init__.py       # Settings（DECP_ 前缀环境变量 / .env）
   models/__init__.py       # Feedback / Requirement / AnalysisResult 等
   storage/
-    base.py                # StorageBackend 抽象接口
-    sqlite_backend.py      # SQLite 实现（默认，WAL）
-    postgres_backend.py    # PostgreSQL 实现（psycopg3 连接池，JSONB）
-    __init__.py            # create_storage() 工厂
-  services/__init__.py     # FeedbackService / RequirementService / WorkspaceService
+    base.py                # StorageBackend 抽象接口（全部 @abstractmethod，强制实现）
+    orm_backend.py         # 统一 ORM 实现（SQLAlchemy 2.0 async，URL 切方言：SQLite/PG 共用）
+    orm.py                 # ORM 模型（SQLite TEXT / PG JSONB 经 JsonType 切换）
+    __init__.py            # create_storage() 工厂 + build_dsn()（PG DSN 百分号编码）
+  services/__init__.py     # Feedback / Requirement / Workspace / Task / Bug / Sprint / Meeting / Attachment 服务
   report/                  # ReportService：HTML（jinja2）+ Excel（openpyxl）
   mcp_/
     main.py                # MCP server 入口（stdio/http）
@@ -181,12 +181,13 @@ scripts/                   # 启动脚本
 
 ## 7. 存储层
 
-- **StorageBackend 抽象**：feedback / requirement / app_meta / user / workspace / workspace_member / task / bug / sprint / task_log / meeting_minutes / attachment 数据域的 CRUD + `domain_stats`。
+- **StorageBackend 抽象**（`base.py`）：feedback / requirement / app_meta / user / workspace / workspace_member / task / bug / sprint / task_log / meeting_minutes / attachment 数据域的 CRUD + `domain_stats`。全部为 `@abstractmethod` 强制实现。
+- **统一实现**：`ORMStorage`（`orm_backend.py`，SQLAlchemy 2.0 async）——通过 engine URL 切方言，SQLite / PostgreSQL 共用一份代码，消除旧双后端重复。JSON 列经 `JsonType = JSON().with_variant(JSONB, "postgresql")` 切换（SQLite 落 TEXT、PG 落 JSONB）。
 - **SQLite**：默认，WAL 模式，`data/decp.db`。
-- **PostgreSQL**：psycopg3 `AsyncConnectionPool`，JSONB 存结构化字段，TIMESTAMPTZ 存时间。
+- **PostgreSQL**：psycopg3（`postgresql+psycopg://`），JSONB 存结构化字段，TIMESTAMPTZ 存时间；DSN 密码经 `build_dsn()` 百分号编码。
 - **旧库迁移**：`_ensure_columns` 幂等补齐 `workspace_id` / 归档列（create_all 只建表不补列）。
 - **创建方式**：`create_storage(settings)` → `await storage.connect()` → `await storage.init_schema()`。
-- 两个后端共享同一 service 逻辑（用存储后端的 SQL 差异封装在后端内部）。
+- Service / MCP / Agent / 测试层只依赖 `StorageBackend` 抽象接口，不感知具体后端。
 
 ## 8. 配置
 
