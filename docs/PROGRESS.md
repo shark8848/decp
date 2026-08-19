@@ -16,12 +16,13 @@
 | 2 | `bug_get_many` 确认已为 `@abstractmethod`（非可选）且 `ORMStorage` 完整实现，`__abstractmethods__` 为空；补 `test_task_board_embeds_bug_subcards` 覆盖 board include_bugs 路径 | 15 passed |
 | 6 | `SkillCatalog` 增加 `SkillDef.is_injection` 属性 + `triggers()` 方法；`missing_tools` 显式跳过注入型技能；补 `test_skill_catalog_soul_excluded_from_triggers` | 6 passed |
 | 9 | CLAUDE.md 存储层旧表述清理：目录结构更新为 `orm_backend.py`/`orm.py` 单一 ORM 实现，第 7 节重写（JsonType 切换 / build_dsn 编码 / 抽象强制实现） | — |
-| 10 | 打 tag v0.2.0 触发 `release-skills.yml`（测试 + npm/skills 同步 + 打包不含 soul + 上传 Release 资产） | 本地 `package-skills.sh --check` 预演通过 |
+| 10 | 打 tag v0.2.0 触发 `release-skills.yml`（测试 + npm/skills 同步 + 打包不含 soul + 上传 Release 资产）。**首次 CI 失败 → 修复后重跑** | 首次失败：npm/skills/README 副本未同步 + CI 推 $GITHUB_REF_NAME 到不存在的分支 |
 
 **关键决策**
 - participant 过滤的 SQLite LIKE **不能用 `escape="\\"`**：存储文本的 `\uXXXX` 含反斜杠，设转义字符会把 `\u` 解释为转义序列导致命中失败。
 - PG JSONB `contains()` 传 **Python list**（`[participant]`）而非 JSON 字符串——传字符串会绑定为 VARCHAR，`@>` 右侧类型不匹配报错。
 - soul 注入型语义基于 manifest（`depends_on_tools`/`depends_on_mcp_servers` 均空），与 skills/README.md 约定一致。
+- **v0.2.0 首次 CI 失败（fe7cf59）复盘**：① `npm/skills/README.md` 副本在 5d0ae7a 未随源同步，`sync-npm-skills.sh --check` 检出差异；② CI 同步提交用 `git push origin "$GITHUB_REF_NAME"`，tag 触发时推的是不存在的 `heads/v0.2.0` 分支。修复：补同步 README（3ef68b6）+ CI 改 `git push origin HEAD:main`（c96c7d8），tag 移动至 c96c7d8 后重跑。
 
 ### 遗留项 🔲（更新后）
 
